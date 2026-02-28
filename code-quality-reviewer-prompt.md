@@ -50,6 +50,13 @@ Task tool (subagent_type: general-purpose):
     - CWE-400: Resource exhaustion (unbounded loops, unclosed file handles)
     - General: input validation at system boundaries, no injection vulnerabilities
 
+    **Logging compliance** (if ${REVIEW_STANDARDS} exists, enforce its logging rules):
+    - Uses lazy `%` formatting, not f-strings in log calls
+    - No `print()` in production code
+    - New modules use `logger = logging.getLogger(__name__)`, not `logging.basicConfig()`
+    - No custom handler setup in application modules — logging infrastructure belongs in the project's centralized config
+    - If project has a `logging:` section in project-config.yaml, verify conformance to configured destination/format/level
+
     **Config sprawl** (if ${ENV_CONFIG_POLICY} exists, enforce its rules):
     - New config values use python-dotenv pattern (or project-appropriate config mechanism, not hardcoded defaults in logic)
     - No secrets or API keys in committed source files

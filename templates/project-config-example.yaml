@@ -37,6 +37,19 @@ plan-and-execute:
   PLAN_DIR: "docs/plans"
   # CONSTITUTION: ".specify/memory/constitution.md"  # Uncomment if using speckit constitution
 
+  # --- Logging ---
+  # Set during install.sh interactive setup. Drives logging_config.py generation
+  # and code-quality review enforcement. Omit entire section to skip logging setup.
+  #
+  # logging:
+  #   destination: "file"                         # "terminal" | "file" | "both"
+  #   file_path: "logs/app.log"                   # Relative to PROJECT_ROOT (used when destination includes file)
+  #   rotation: "size"                            # "size" | "time" | "none"
+  #   max_size_mb: 10                             # Max file size before rotation (rotation=size only)
+  #   backup_count: 5                             # Number of rotated files to keep
+  #   format: "structured"                        # "structured" (JSON) | "human"
+  #   level: "INFO"                               # "DEBUG" | "INFO" | "WARNING" | "ERROR"
+
   # --- Behavior ---
   SCAN_MODE: "docs"                              # "docs" or "full"
   CONCEPT_MODE: "ask"                            # "ask" or "skip"

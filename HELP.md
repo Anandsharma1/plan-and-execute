@@ -57,6 +57,16 @@ plan-and-execute is an **orchestrator** -- it invokes other skills/plugins at sp
 
 The `--help` flag shows this file. The description is passed directly into the Goal field of `task_plan.md`.
 
+### Standalone Domain Review
+
+```
+/domain-code-review                          # Review working tree changes
+/domain-code-review abc123..def456           # Review commit range
+/domain-code-review src/auth.py src/models.py  # Review specific files
+```
+
+Reviews code against your project's `review-standards.md`, `env-config-policy.md`, and logging policy. Does not require the full plan-and-execute lifecycle.
+
 ---
 
 ## Parameters
@@ -79,6 +89,7 @@ The `--help` flag shows this file. The description is passed directly into the G
 | `SCAN_MODE` | `docs` | Phase 2 research mode | `SCAN_MODE=full` |
 | `CONCEPT_MODE` | `ask` | Phase 1 behaviour | `CONCEPT_MODE=skip` |
 | `DOC_TASK_MODE` | `auto` | Phase 4 auto documentation task | `DOC_TASK_MODE=skip` |
+| `logging` | (none) | Nested config block for project logging policy | See below |
 
 Parameters not provided at invocation use their defaults. Use `project-config.yaml` to set project-wide defaults.
 
@@ -99,6 +110,31 @@ plan-and-execute:
 ```
 
 Invocation parameters override config file values. Config file values override skill defaults.
+
+### Logging Configuration
+
+The `logging:` block is an optional nested section in `project-config.yaml` that sets a project-wide logging policy. When present, the code-quality reviewer enforces compliance.
+
+```yaml
+plan-and-execute:
+  logging:
+    destination: "file"       # "terminal" | "file" | "both"
+    file_path: "logs/app.log" # Relative to PROJECT_ROOT
+    rotation: "size"          # "size" | "time" | "none"
+    max_size_mb: 10           # Max file size before rotation (size only)
+    backup_count: 5           # Rotated files to keep
+    format: "structured"      # "structured" (JSON) | "human"
+    level: "INFO"             # "DEBUG" | "INFO" | "WARNING" | "ERROR"
+```
+
+**Setup:** Run `install.sh` and answer the interactive logging questions, or add the block manually.
+
+**What it drives:**
+- `install.sh` generates a ready-to-use `logging_config.py` in your project root
+- Code-quality reviewer checks: no `print()`, no `logging.basicConfig()` in modules, `getLogger(__name__)` required, format compliance
+- Review standards (Section 3) enforce statement and infrastructure rules
+
+**If omitted:** Logging compliance checks are skipped. Phase 0 will note that no logging policy is configured.
 
 ---
 
@@ -161,6 +197,7 @@ If your project doesn't have review standards or config policies yet, use the in
 2. **Config policy:** Copy `./templates/env-config-policy-template.md` to `${ENV_CONFIG_POLICY}` and adjust rules for your stack.
 3. **Domain reviewer:** Copy `./templates/domain-reviewer-template.md` to `.claude/agents/${DOMAIN_REVIEWER}.md` and fill in domain-specific review criteria.
 4. **Project config:** Create `.claude/project-config.yaml` with your project's parameter defaults.
+5. **Logging:** Run `install.sh` with interactive logging setup, or manually add a `logging:` block to `project-config.yaml` and copy `./templates/logging_config_template.py` to your project root.
 
 ---
 

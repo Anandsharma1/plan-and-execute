@@ -95,8 +95,11 @@ This creates starter files that you should customize for your domain and stack:
 | `docs/env-config-policy.md` | Environment and configuration rules -- adjust for your stack (secrets, ports, feature flags) |
 | `.claude/agents/domain-reviewer.md` | Domain-specific reviewer agent invoked in Phase 6 -- fill in your domain's invariants and quality bar |
 | `.claude/project-config.yaml` | Parameter defaults for your project (test command, lint command, security scanner, etc.) |
+| `logging_config.py` | Python logging configuration (generated if you answer the interactive logging questions) |
 
 The installer never overwrites existing files. It is safe to re-run.
+
+The installer also offers an **interactive logging setup** -- choose log destination (file/terminal/both), rotation policy, format (JSON/human), and level. Your choices are saved in `project-config.yaml` and a ready-to-use `logging_config.py` is generated. This is a one-time decision; the code-quality reviewer enforces compliance on every subsequent task.
 
 ---
 
@@ -125,6 +128,17 @@ plan-and-execute is an **orchestrator** -- it delegates to other skills at speci
 ```
 
 The description is passed directly into the Goal field of `task_plan.md`. Parameters not provided at invocation use their defaults. Use `.claude/project-config.yaml` to set project-wide defaults.
+
+### Standalone Domain Review
+
+Review code against your project's standards without running the full lifecycle:
+
+```
+/domain-code-review                           # Review working tree changes
+/domain-code-review abc123..def456            # Review commit range
+```
+
+This is the same project-specific review that runs during plan-and-execute Phase 5/6, but available independently.
 
 ---
 

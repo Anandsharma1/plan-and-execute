@@ -77,6 +77,7 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | SCAN_MODE | `docs` | Phase 2 research mode: `docs` = use existing documentation as navigation guide; `full` = scan codebase directly, treat docs as untrustworthy or absent |
 | CONCEPT_MODE | `ask` | Phase 1 behaviour: `ask` = present concept/design options to user; `skip` = jump straight to Phase 2 research (for enhancements with clear scope) |
 | DOC_TASK_MODE | `auto` | Phase 4 documentation task: `auto` = always append a mandatory documentation task as the last task; `skip` = no auto-generated doc task |
+| logging | (none — optional) | Nested config block (`destination`, `file_path`, `rotation`, `max_size_mb`, `backup_count`, `format`, `level`). Set once via `install.sh` or manually in `project-config.yaml`. When present, code-quality reviewer enforces logging compliance. |
 
 ### Project Config File (Optional)
 
@@ -94,6 +95,14 @@ plan-and-execute:
   REVIEW_STANDARDS: "docs/review-standards.md"
   ENV_CONFIG_POLICY: "docs/env-config-policy.md"
   DOC_TASK_MODE: "auto"
+  # logging:                    # Optional — set via install.sh or manually
+  #   destination: "file"       # "terminal" | "file" | "both"
+  #   file_path: "logs/app.log"
+  #   rotation: "size"          # "size" | "time" | "none"
+  #   max_size_mb: 10
+  #   backup_count: 5
+  #   format: "structured"      # "structured" (JSON) | "human"
+  #   level: "INFO"
 ```
 
 Parameters at invocation override config file values. Config file values override skill defaults.
@@ -140,6 +149,7 @@ concept & design         planning-with-files          plan generation         ta
 | `./spec-reviewer-prompt.md` | Phase 5 (Topology A/B) | Adversarial task-level spec compliance verification |
 | `./agent-spec-reviewer-prompt.md` | Phase 5 (Topology C) | Agent-level spec verification -- outputs, file ownership, RALPH criteria |
 | `./code-quality-reviewer-prompt.md` | Phase 5 (all topologies) | Git SHA-scoped code quality review (SOLID, DRY, YAGNI, CWE security, config sprawl) |
+| `./skills/domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Also invocable as `/domain-code-review`. |
 | `./task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
 | `./review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
 
@@ -173,10 +183,11 @@ If the script is unavailable or if catchup report shows unsynced context, do man
 
 **Parameter resolution:** Before anything else, resolve parameters:
 1. Check for `project-config.yaml` in `${PROJECT_ROOT}/.claude/` or `${PROJECT_ROOT}/`
-2. If found, load `plan-and-execute` section as base values
+2. If found, load `plan-and-execute` section as base values (including `logging:` block if present)
 3. Apply any invocation-time overrides on top
 4. Apply skill defaults for anything still unset
 5. Log resolved parameters in `task_plan.md` Parameters table
+6. If `logging:` block exists in config, note it in Parameters table — this drives code-quality review enforcement. If absent and this is the first run, inform user: "No logging policy configured. Run `install.sh` with logging setup or add a `logging:` section to `project-config.yaml` to enable logging compliance checks."
 
 **Dependency check:** Detect which optional dependencies are available and log in `task_plan.md`:
 - `planning-with-files`: Check if `/planning-with-files` skill is available
@@ -518,6 +529,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./implementer-prompt.md` -- full task text + context, TDD, self-review before reporting
    - `./spec-reviewer-prompt.md` -- adversarial task-level spec verification
    - `./code-quality-reviewer-prompt.md` -- git SHA-scoped quality review (includes CWE + config sprawl)
+   - `/domain-code-review` skill -- project-specific standards review (review-standards.md, env-config-policy, logging). Invoke after code-quality review passes.
    - If `${CONTEXT_DIR}/review-learnings.md` exists, include it in the reviewer dispatch prompt with instruction: "Apply any review instructions from entries applicable to your role."
 
    **Rules:**
@@ -707,9 +719,9 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - Verify: module-specific config in module directory (not root), if applicable
    - Verify: new config keys documented in module README.md
 
-4. **Domain review** (if `DOMAIN_REVIEWER` is set -- skip for infra/config-only changes):
-   Dispatch `${DOMAIN_REVIEWER}` agent (reads `${REVIEW_STANDARDS}`):
-   - Check domain invariants, business logic correctness, API contracts
+4. **Domain review** (skip for infra/config-only changes):
+   Invoke `/domain-code-review` skill on the full branch diff. This skill reads `${REVIEW_STANDARDS}`, `${ENV_CONFIG_POLICY}`, and the `logging:` config block, then dispatches a reviewer subagent.
+   - If `DOMAIN_REVIEWER` is also set, dispatch that agent too (it may have domain-specific criteria beyond what review-standards.md covers)
    - CRITICAL findings must be fixed before PR; Important findings require acknowledgment
 
 5. **Consolidate review findings across all Phase 5 iterations:**
@@ -797,4 +809,5 @@ This is the primary advantage of this unified skill -- the planning files make y
 | Spec traceability (new module / formal feature) | `speckit:specify` (invoked via Phase 1 Path A or C, or Phase 3 speckit gate) |
 | Lightweight context tracking without formal planning | `planning-with-files` directly |
 | Iterative convergence on a single task | `ralph-loop` plugin directly |
+| Project-specific standards review | `/domain-code-review` (standalone, or invoked by Phase 5/6) |
 | Domain review for project modules | `${DOMAIN_REVIEWER}` agent directly (if configured) |

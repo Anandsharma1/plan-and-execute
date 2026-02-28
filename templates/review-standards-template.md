@@ -100,9 +100,16 @@ tests/         # Test suite
 
 ## Logging
 
+### Statement Rules
 - **REQUIRED**: Use lazy `%` formatting: `logger.info("Processing item: %s", item_name)`
 - **VIOLATION**: f-strings in logging: `logger.info(f"Processing item: {item_name}")`
 - **VIOLATION**: `print()` statements in production code
+
+### Infrastructure Rules
+- **REQUIRED**: New modules must use `logger = logging.getLogger(__name__)`
+- **VIOLATION**: Module-level `logging.basicConfig()` — use the project's centralized logging config
+- **VIOLATION**: Custom `logging.FileHandler` / `StreamHandler` setup in application modules — logging infrastructure belongs in the project's `logging_config.py`
+- **REQUIRED**: If project has a `logging:` section in `project-config.yaml`, all logging must conform to its configured destination, format, and level
 
 ## Exception Handling
 
@@ -205,7 +212,7 @@ Note any areas where the diff may have introduced risk that is not fully covered
 
 - [ ] Module boundaries respected
 - [ ] Domain-specific rules followed
-- [ ] Clean code rules followed (logging format, exception handling, imports)
+- [ ] Clean code rules followed (logging format, logging infrastructure, exception handling, imports)
 - [ ] Test quality criteria met
 - [ ] Plan must-have items are implemented or explicitly deferred with trigger
 - [ ] No hardcoded secrets or credentials
