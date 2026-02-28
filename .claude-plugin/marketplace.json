@@ -1,0 +1,9 @@
+{
+  "name": "plan-and-execute",
+  "version": "1.0.0",
+  "description": "Unified lifecycle orchestrator for multi-step development with 7-phase planning, two-stage review, and persistent context",
+  "author": "Anandsharma1",
+  "repository": "https://github.com/Anandsharma1/plan-and-execute",
+  "license": "MIT",
+  "keywords": ["planning", "code-review", "lifecycle", "orchestrator"]
+}

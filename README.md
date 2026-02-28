@@ -24,7 +24,7 @@ A unified lifecycle orchestrator for multi-step development -- research, plan, e
 Install as a Claude Code plugin:
 
 ```bash
-claude plugin add <user>/plan-and-execute
+claude plugin add Anandsharma1/plan-and-execute
 claude plugin enable plan-and-execute
 claude
 ```
@@ -42,30 +42,30 @@ Then invoke:
 ### Claude Code (Plugin Marketplace)
 
 ```
-/plugin marketplace add <user>/plan-and-execute
+/plugin marketplace add Anandsharma1/plan-and-execute
 ```
 
 ### GitHub Copilot
 
 ```bash
-git clone https://github.com/<user>/plan-and-execute.git .github/skills/plan-and-execute
+git clone https://github.com/Anandsharma1/plan-and-execute.git .github/skills/plan-and-execute
 ```
 
 ### Cursor
 
 1. Open **Settings** -> **Rules** -> **Remote Rule**
-2. Add the GitHub URL: `https://github.com/<user>/plan-and-execute`
+2. Add the GitHub URL: `https://github.com/Anandsharma1/plan-and-execute`
 
 ### Codex CLI
 
 ```bash
-git clone https://github.com/<user>/plan-and-execute.git ~/.agents/skills/plan-and-execute
+git clone https://github.com/Anandsharma1/plan-and-execute.git ~/.agents/skills/plan-and-execute
 ```
 
 ### SkillKit (Universal)
 
 ```bash
-skillkit install github.com/<user>/plan-and-execute
+skillkit install github.com/Anandsharma1/plan-and-execute
 ```
 
 ### Manual
@@ -73,7 +73,7 @@ skillkit install github.com/<user>/plan-and-execute
 Clone the repository and copy its contents to your platform's skill directory:
 
 ```bash
-git clone https://github.com/<user>/plan-and-execute.git
+git clone https://github.com/Anandsharma1/plan-and-execute.git
 cp -r plan-and-execute/ <your-platform-skill-directory>/plan-and-execute/
 ```
 
@@ -81,25 +81,25 @@ cp -r plan-and-execute/ <your-platform-skill-directory>/plan-and-execute/
 
 ## Project Setup
 
-After installing the skill, bootstrap project-specific configuration files:
+On first invocation, plan-and-execute detects that setup hasn't been completed and offers to run it automatically. Setup auto-detects your package manager, test runner, linter, and security scanner from the codebase, asks 2-3 questions (domain name, domain reviewer, logging preset), and generates all required config files. It never overwrites existing files.
+
+**Generated files:**
+
+| File | Purpose |
+|------|---------|
+| `.claude/project-config.yaml` | Parameter defaults (test/lint/security commands, logging policy) |
+| `docs/review-standards.md` | Review criteria for two-stage review -- customize sections 2 and 5 for your domain |
+| `docs/env-config-policy.md` | Environment and configuration rules -- review for your stack |
+| `.claude/agents/<name>-reviewer.md` | Domain-specific reviewer agent (optional) -- fill in domain review criteria |
+| `logging_config.py` | Python logging configuration (if logging preset chosen) |
+
+To re-run setup later, delete `.claude/.plan-and-execute-setup.done` and invoke the skill again.
+
+**Alternative:** Use the shell-based installer for non-interactive environments:
 
 ```bash
 ./install.sh /path/to/project
 ```
-
-This creates starter files that you should customize for your domain and stack:
-
-| File | Purpose |
-|------|---------|
-| `docs/review-standards.md` | Review criteria applied during two-stage review -- customize sections 1-5 for your domain |
-| `docs/env-config-policy.md` | Environment and configuration rules -- adjust for your stack (secrets, ports, feature flags) |
-| `.claude/agents/domain-reviewer.md` | Domain-specific reviewer agent invoked in Phase 6 -- fill in your domain's invariants and quality bar |
-| `.claude/project-config.yaml` | Parameter defaults for your project (test command, lint command, security scanner, etc.) |
-| `logging_config.py` | Python logging configuration (generated if you answer the interactive logging questions) |
-
-The installer never overwrites existing files. It is safe to re-run.
-
-The installer also offers an **interactive logging setup** -- choose log destination (file/terminal/both), rotation policy, format (JSON/human), and level. Your choices are saved in `project-config.yaml` and a ready-to-use `logging_config.py` is generated. This is a one-time decision; the code-quality reviewer enforces compliance on every subsequent task.
 
 ---
 

@@ -152,6 +152,7 @@ concept & design         planning-with-files          plan generation         ta
 | `./skills/domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Also invocable as `/domain-code-review`. |
 | `./task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
 | `./review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
+| `./setup-prompt.md` | Phase 0 (first run only) | Auto-detection + guided setup flow — loaded when `.claude/.plan-and-execute-setup.done` is absent |
 
 ### Bootstrap Templates (for new projects)
 
@@ -181,13 +182,21 @@ If the script is unavailable or if catchup report shows unsynced context, do man
 
 ## Phase 0: Conflict Check + Initialize Context Files
 
-**Parameter resolution:** Before anything else, resolve parameters:
+**Setup check:** Before parameter resolution, check if setup has been completed:
+- Check: `.claude/.plan-and-execute-setup.done` exists?
+  → If YES: skip setup, proceed to parameter resolution.
+  → If NO: Ask "No project setup found. Run setup to auto-detect your project? [Y/n]"
+    - If Y: Read `./setup-prompt.md` and execute the setup flow. After setup completes, continue with parameter resolution below.
+    - If N: use skill defaults, proceed normally.
+- To re-run setup later, delete `.claude/.plan-and-execute-setup.done`.
+
+**Parameter resolution:** Resolve parameters:
 1. Check for `project-config.yaml` in `${PROJECT_ROOT}/.claude/` or `${PROJECT_ROOT}/`
 2. If found, load `plan-and-execute` section as base values (including `logging:` block if present)
 3. Apply any invocation-time overrides on top
 4. Apply skill defaults for anything still unset
 5. Log resolved parameters in `task_plan.md` Parameters table
-6. If `logging:` block exists in config, note it in Parameters table — this drives code-quality review enforcement. If absent and this is the first run, inform user: "No logging policy configured. Run `install.sh` with logging setup or add a `logging:` section to `project-config.yaml` to enable logging compliance checks."
+6. If `logging:` block exists in config, note it in Parameters table — this drives code-quality review enforcement. If absent and this is the first run, inform user: "No logging policy configured. Delete `.claude/.plan-and-execute-setup.done` and re-run to trigger setup, or add a `logging:` section to `project-config.yaml` manually."
 
 **Dependency check:** Detect which optional dependencies are available and log in `task_plan.md`:
 - `planning-with-files`: Check if `/planning-with-files` skill is available

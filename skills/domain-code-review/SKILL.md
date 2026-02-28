@@ -161,4 +161,3 @@ This skill is **one layer** in a multi-layer review stack:
 | Generic quality | `superpowers:code-reviewer` | SOLID, DRY, security (confidence-scored) | Anytime |
 | **Domain standards** | **`domain-code-review` (this skill)** | **Project-specific rules, invariants, logging, config** | **Anytime (standalone or via plan-and-execute)** |
 
-Do NOT duplicate checks that `superpowers:code-reviewer` already handles (SOLID, DRY, CWE). Focus on what only the project's standards document can tell you.

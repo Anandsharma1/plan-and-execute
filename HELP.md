@@ -55,7 +55,7 @@ plan-and-execute is an **orchestrator** -- it invokes other skills/plugins at sp
 /plan-and-execute --help
 ```
 
-The `--help` flag shows this file. The description is passed directly into the Goal field of `task_plan.md`.
+The `--help` flag shows this file. The description is passed directly into the Goal field of `task_plan.md`. On first invocation, setup runs automatically (see Setup Mode below).
 
 ### Standalone Domain Review
 
@@ -127,7 +127,7 @@ plan-and-execute:
     level: "INFO"             # "DEBUG" | "INFO" | "WARNING" | "ERROR"
 ```
 
-**Setup:** Run `install.sh` and answer the interactive logging questions, or add the block manually.
+**Setup:** Configured automatically during first-run setup (picks a preset), via `install.sh` (interactive shell questions), or add the block manually.
 
 **What it drives:**
 - `install.sh` generates a ready-to-use `logging_config.py` in your project root
@@ -189,15 +189,35 @@ specs/                    # Topology C only
 
 ---
 
-## Bootstrap: Setting Up a New Project
+## Setup Mode
 
-If your project doesn't have review standards or config policies yet, use the included templates:
+On first invocation, plan-and-execute checks for `.claude/.plan-and-execute-setup.done`. If absent, it offers to run guided setup before proceeding. Setup instructions live in `setup-prompt.md` and are only loaded during this one-time flow.
 
-1. **Review standards:** Copy `./templates/review-standards-template.md` to `${REVIEW_STANDARDS}` and customize sections 1-5 for your domain.
-2. **Config policy:** Copy `./templates/env-config-policy-template.md` to `${ENV_CONFIG_POLICY}` and adjust rules for your stack.
-3. **Domain reviewer:** Copy `./templates/domain-reviewer-template.md` to `.claude/agents/${DOMAIN_REVIEWER}.md` and fill in domain-specific review criteria.
-4. **Project config:** Create `.claude/project-config.yaml` with your project's parameter defaults.
-5. **Logging:** Run `install.sh` with interactive logging setup, or manually add a `logging:` block to `project-config.yaml` and copy `./templates/logging_config_template.py` to your project root.
+### What it does
+
+1. **Auto-detects** your package manager (uv/poetry/pip), test runner, linter, security scanner, project structure, config framework, and .env patterns from the codebase
+2. **Asks 2-3 questions**: domain name, whether to create a domain reviewer agent, and logging preset (backend/cli-tool/skip)
+3. **Generates files**: `project-config.yaml`, `review-standards.md`, `env-config-policy.md`, domain reviewer agent (optional), `logging_config.py` (optional)
+4. **Creates marker** `.claude/.plan-and-execute-setup.done` so setup doesn't trigger again
+5. **Prints a summary** showing what was generated and what still needs manual customization
+
+Never overwrites existing files. To re-run setup, delete `.claude/.plan-and-execute-setup.done`.
+
+### What still needs manual attention after setup
+
+- `docs/review-standards.md` sections 2 (domain-specific rules) and 5 (invariants)
+- `.claude/agents/<name>-reviewer.md` domain-specific review criteria
+- Any auto-detected values that don't match your actual setup
+
+### Alternative: Shell installer
+
+For non-interactive environments, use the shell-based installer:
+
+```bash
+./install.sh /path/to/project
+```
+
+This copies templates and offers interactive logging configuration via shell prompts.
 
 ---
 
