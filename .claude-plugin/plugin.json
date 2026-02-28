@@ -1,0 +1,9 @@
+{
+  "name": "plan-and-execute",
+  "description": "Unified lifecycle orchestrator for multi-step development: 7-phase planning, two-stage review, persistent context, RALPH-validated execution",
+  "version": "1.0.0",
+  "author": {
+    "name": "Anand Sharma"
+  },
+  "license": "MIT"
+}

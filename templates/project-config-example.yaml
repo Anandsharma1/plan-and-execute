@@ -1,0 +1,43 @@
+# Example project-config.yaml for plan-and-execute
+# Save to: ${PROJECT_ROOT}/.claude/project-config.yaml
+#
+# All values are optional -- skill defaults apply for anything not specified.
+# Invocation-time parameters override these values.
+
+plan-and-execute:
+  # --- Project structure ---
+  PROJECT_ROOT: "."                              # "." if CWD is already root, or "my-app" for monorepo
+  # MODULE_NAME: "auth"                          # Uncomment if you always work on one module
+
+  # --- Commands ---
+  # Python with uv:
+  TEST_CMD: "uv run pytest"
+  LINT_CMD: "uv run ruff check ."
+  SECURITY_CMD: "uv run bandit -r . -ll"
+
+  # Python with poetry:
+  # TEST_CMD: "poetry run pytest"
+  # LINT_CMD: "poetry run ruff check ."
+  # SECURITY_CMD: "poetry run bandit -r . -ll"
+
+  # Python with plain pip/venv:
+  # TEST_CMD: "python -m pytest"
+  # LINT_CMD: "ruff check ."
+  # SECURITY_CMD: "bandit -r . -ll"
+
+  # --- Test markers ---
+  INTEGRATION_MARKERS: "-m integration"          # pytest markers for integration tests
+
+  # --- Review & policy files ---
+  REVIEW_STANDARDS: "docs/review-standards.md"   # Copy from templates/review-standards-template.md
+  ENV_CONFIG_POLICY: "docs/env-config-policy.md" # Copy from templates/env-config-policy-template.md
+  # DOMAIN_REVIEWER: "my-domain-reviewer"        # Agent in .claude/agents/ -- leave unset to skip domain review
+
+  # --- Planning ---
+  PLAN_DIR: "docs/plans"
+  # CONSTITUTION: ".specify/memory/constitution.md"  # Uncomment if using speckit constitution
+
+  # --- Behavior ---
+  SCAN_MODE: "docs"                              # "docs" or "full"
+  CONCEPT_MODE: "ask"                            # "ask" or "skip"
+  DOC_TASK_MODE: "auto"                          # "auto" or "skip"
