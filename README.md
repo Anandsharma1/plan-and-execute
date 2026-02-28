@@ -39,6 +39,8 @@ Then invoke:
 
 ## Installation
 
+The repo includes pre-built IDE directories so each platform picks up the skill automatically.
+
 ### Claude Code (Plugin Marketplace)
 
 ```
@@ -48,33 +50,42 @@ Then invoke:
 ### GitHub Copilot
 
 ```bash
-git clone https://github.com/Anandsharma1/plan-and-execute.git .github/skills/plan-and-execute
+git clone https://github.com/Anandsharma1/plan-and-execute.git
+cp -r plan-and-execute/.github/skills/plan-and-execute/ .github/skills/plan-and-execute/
 ```
 
 ### Cursor
 
-1. Open **Settings** -> **Rules** -> **Remote Rule**
-2. Add the GitHub URL: `https://github.com/Anandsharma1/plan-and-execute`
+```bash
+git clone https://github.com/Anandsharma1/plan-and-execute.git
+cp -r plan-and-execute/.cursor/skills/plan-and-execute/ .cursor/skills/plan-and-execute/
+```
 
 ### Codex CLI
 
 ```bash
-git clone https://github.com/Anandsharma1/plan-and-execute.git ~/.agents/skills/plan-and-execute
+git clone https://github.com/Anandsharma1/plan-and-execute.git
+cp -r plan-and-execute/.codex/skills/plan-and-execute/ .codex/skills/plan-and-execute/
 ```
 
-### SkillKit (Universal)
+### Gemini CLI
 
 ```bash
-skillkit install github.com/Anandsharma1/plan-and-execute
+git clone https://github.com/Anandsharma1/plan-and-execute.git
+cp -r plan-and-execute/.gemini/skills/plan-and-execute/ .gemini/skills/plan-and-execute/
+```
+
+### SkillKit / npx (Universal)
+
+```bash
+npx skills add Anandsharma1/plan-and-execute
 ```
 
 ### Manual
 
-Clone the repository and copy its contents to your platform's skill directory:
-
 ```bash
 git clone https://github.com/Anandsharma1/plan-and-execute.git
-cp -r plan-and-execute/ <your-platform-skill-directory>/plan-and-execute/
+cp -r plan-and-execute/.agents/skills/plan-and-execute/ <your-platform-skill-directory>/plan-and-execute/
 ```
 
 ---
@@ -153,6 +164,13 @@ This is the same project-specific review that runs during plan-and-execute Phase
 | 4 | Task Breakdown | Decompose approved plan into atomic tasks | Tasks appended to the approved plan file |
 | 5 | Execution | SDD dispatch per topology with two-stage review | Implemented code, commits, `review-learnings.md` updated |
 | 6 | Finalization | Security scan, config check, domain review, documentation gates | Final summary, branch ready for PR |
+
+---
+
+## Acknowledgements
+
+- [planning-with-files](https://github.com/OthmanAdi/planning-with-files) by @OthmanAdi — persistent context management and session recovery
+- [ralph-loop](https://marketplace.claudecode.dev/plugins/ralph-loop) by Anthropic — iterative convergence loop for validated execution
 
 ---
 

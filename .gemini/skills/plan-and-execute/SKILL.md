@@ -1,8 +1,6 @@
 ---
 name: plan-and-execute
 description: Use when starting a multi-step feature, bugfix, or refactor that needs research, formal planning, and validated execution with persistent context across phases
-user-invokable: true
-argument-hint: "<feature request, bug description, or task description>"
 ---
 
 # Plan and Execute
