@@ -9,13 +9,19 @@ set -euo pipefail
 #   - Prompt templates (implementer, reviewers, etc.)
 #   - Bootstrap templates (review-standards, env-config, etc.)
 #   - Supporting files (setup-prompt, task-plan-template, etc.)
+#   - domain-code-review skill (synced as sibling, not nested)
 #
 # IDE directories:
 #   .cursor/skills/plan-and-execute/
+#   .cursor/skills/domain-code-review/   (sibling skill)
 #   .codex/skills/plan-and-execute/
+#   .codex/skills/domain-code-review/
 #   .github/skills/plan-and-execute/    (GitHub Copilot)
+#   .github/skills/domain-code-review/
 #   .gemini/skills/plan-and-execute/
+#   .gemini/skills/domain-code-review/
 #   .agents/skills/plan-and-execute/    (SkillKit / npx skills)
+#   .agents/skills/domain-code-review/
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -120,11 +126,13 @@ for target in "${!TARGETS[@]}"; do
     done
   fi
 
-  # Sync domain-code-review skill
-  if [ -d "skills/domain-code-review" ]; then
-    for f in skills/domain-code-review/*; do
+  # Sync domain-code-review as a sibling skill (e.g. .cursor/skills/domain-code-review/)
+  SIBLING_DIR="$(dirname "$target")/domain-code-review"
+  if [ -d "domain-code-review" ]; then
+    for f in domain-code-review/*; do
       if [ -f "$f" ]; then
-        sync_file "$f" "$target/$f"
+        local_name="$(basename "$f")"
+        sync_file "$f" "$SIBLING_DIR/$local_name"
       fi
     done
   fi

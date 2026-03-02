@@ -149,7 +149,7 @@ concept & design         planning-with-files          plan generation         ta
 | `./spec-reviewer-prompt.md` | Phase 5 (Topology A/B) | Adversarial task-level spec compliance verification |
 | `./agent-spec-reviewer-prompt.md` | Phase 5 (Topology C) | Agent-level spec verification -- outputs, file ownership, RALPH criteria |
 | `./code-quality-reviewer-prompt.md` | Phase 5 (all topologies) | Git SHA-scoped code quality review (SOLID, DRY, YAGNI, CWE security, config sprawl) |
-| `./skills/domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Also invocable as `/domain-code-review`. |
+| `../domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Sibling skill — also invocable independently as `/domain-code-review`. |
 | `./task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
 | `./review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
 | `./setup-prompt.md` | Phase 0 (first run only) | Auto-detection + guided setup flow — loaded when `.claude/.plan-and-execute-setup.done` is absent |

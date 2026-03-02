@@ -52,6 +52,7 @@ The repo includes pre-built IDE directories so each platform picks up the skill 
 ```bash
 git clone https://github.com/Anandsharma1/plan-and-execute.git
 cp -r plan-and-execute/.github/skills/plan-and-execute/ .github/skills/plan-and-execute/
+cp -r plan-and-execute/.github/skills/domain-code-review/ .github/skills/domain-code-review/
 ```
 
 ### Cursor
@@ -59,6 +60,7 @@ cp -r plan-and-execute/.github/skills/plan-and-execute/ .github/skills/plan-and-
 ```bash
 git clone https://github.com/Anandsharma1/plan-and-execute.git
 cp -r plan-and-execute/.cursor/skills/plan-and-execute/ .cursor/skills/plan-and-execute/
+cp -r plan-and-execute/.cursor/skills/domain-code-review/ .cursor/skills/domain-code-review/
 ```
 
 ### Codex CLI
@@ -66,6 +68,7 @@ cp -r plan-and-execute/.cursor/skills/plan-and-execute/ .cursor/skills/plan-and-
 ```bash
 git clone https://github.com/Anandsharma1/plan-and-execute.git
 cp -r plan-and-execute/.codex/skills/plan-and-execute/ .codex/skills/plan-and-execute/
+cp -r plan-and-execute/.codex/skills/domain-code-review/ .codex/skills/domain-code-review/
 ```
 
 ### Gemini CLI
@@ -73,6 +76,7 @@ cp -r plan-and-execute/.codex/skills/plan-and-execute/ .codex/skills/plan-and-ex
 ```bash
 git clone https://github.com/Anandsharma1/plan-and-execute.git
 cp -r plan-and-execute/.gemini/skills/plan-and-execute/ .gemini/skills/plan-and-execute/
+cp -r plan-and-execute/.gemini/skills/domain-code-review/ .gemini/skills/domain-code-review/
 ```
 
 ### SkillKit / npx (Universal)
@@ -86,6 +90,7 @@ npx skills add Anandsharma1/plan-and-execute
 ```bash
 git clone https://github.com/Anandsharma1/plan-and-execute.git
 cp -r plan-and-execute/.agents/skills/plan-and-execute/ <your-platform-skill-directory>/plan-and-execute/
+cp -r plan-and-execute/.agents/skills/domain-code-review/ <your-platform-skill-directory>/domain-code-review/
 ```
 
 ---
@@ -149,7 +154,7 @@ Review code against your project's standards without running the full lifecycle:
 /domain-code-review abc123..def456            # Review commit range
 ```
 
-This is the same project-specific review that runs during plan-and-execute Phase 5/6, but available independently.
+This is a separate skill (`domain-code-review/`) that ships alongside plan-and-execute. It runs the same project-specific review used during Phase 5/6, but is independently invocable without the full lifecycle.
 
 ---
 
