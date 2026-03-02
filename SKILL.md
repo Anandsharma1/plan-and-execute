@@ -150,8 +150,8 @@ concept & design         planning-with-files          plan generation         ta
 | `./agent-spec-reviewer-prompt.md` | Phase 5 (Topology C) | Agent-level spec verification -- outputs, file ownership, RALPH criteria |
 | `./code-quality-reviewer-prompt.md` | Phase 5 (all topologies) | Git SHA-scoped code quality review (SOLID, DRY, YAGNI, CWE security, config sprawl) |
 | `../domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Sibling skill — also invocable independently as `/domain-code-review`. |
-| `./task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
-| `./review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
+| `./templates/task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
+| `./templates/review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
 | `./setup-prompt.md` | Phase 0 (first run only) | Auto-detection + guided setup flow — loaded when `.claude/.plan-and-execute-setup.done` is absent |
 
 ### Bootstrap Templates (for new projects)
@@ -232,11 +232,11 @@ This determines which paths are available in later phases. If a dependency is mi
 
 1. Invoke `/planning-with-files` with the feature description. This activates the plugin's session hooks -- before every tool call, the hook automatically injects the top 30 lines of `task_plan.md` into context.
 
-2. Immediately overwrite `task_plan.md` with the plan-and-execute structure from `./task-plan-template.md`, filling in Goal, MODULE_NAME, and resolved parameters from the user's request. The plugin reads `task_plan.md` as LLM context (not a parsed schema), so it works correctly with the 7-phase checklist and Plan Details table.
+2. Immediately overwrite `task_plan.md` with the plan-and-execute structure from `./templates/task-plan-template.md`, filling in Goal, MODULE_NAME, and resolved parameters from the user's request. The plugin reads `task_plan.md` as LLM context (not a parsed schema), so it works correctly with the 7-phase checklist and Plan Details table.
 
 `findings.md` and `progress.md` as created by the plugin are used as-is.
 
-3. Create `${CONTEXT_DIR}/review-learnings.md` from `./review-learnings-template.md`. This file accumulates review patterns during Phase 5 execution (user-reported gaps + auto-detected patterns). Reviewers load it before each dispatch.
+3. Create `${CONTEXT_DIR}/review-learnings.md` from `./templates/review-learnings-template.md`. This file accumulates review patterns during Phase 5 execution (user-reported gaps + auto-detected patterns). Reviewers load it before each dispatch.
 
 ## Phase 1: Concept & Design
 

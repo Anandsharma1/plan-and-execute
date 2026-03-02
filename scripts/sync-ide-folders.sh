@@ -44,8 +44,6 @@ PROMPT_FILES=(
   "spec-reviewer-prompt.md"
   "agent-spec-reviewer-prompt.md"
   "code-quality-reviewer-prompt.md"
-  "task-plan-template.md"
-  "review-learnings-template.md"
   "setup-prompt.md"
   "HELP.md"
 )

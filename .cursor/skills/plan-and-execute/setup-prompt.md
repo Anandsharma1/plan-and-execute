@@ -79,7 +79,7 @@ Generate the following files using templates from `./templates/`. Never overwrit
 | `docs/review-standards.md` | `./templates/review-standards-template.md` | Layer mapping table from structure detection, domain name in section 2 heading |
 | `docs/env-config-policy.md` | `./templates/env-config-policy-template.md` | Config framework name in rule 4, .env pattern note in rule 3 |
 | `.claude/agents/<name>-reviewer.md` | `./templates/domain-reviewer-template.md` | Domain name in header and description (only if Q2 = yes) |
-| `review-learnings.md` | `./review-learnings-template.md` | Unchanged (boilerplate) |
+| `review-learnings.md` | `./templates/review-learnings-template.md` | Unchanged (boilerplate) |
 | `logging_config.py` | `./templates/logging_config_template.py` | Preset values substituted (only if logging preset chosen) |
 
 Sections that require domain expertise retain their `<!-- CUSTOMIZE -->` comments or are marked with `TODO:` so the user knows what still needs manual attention.
