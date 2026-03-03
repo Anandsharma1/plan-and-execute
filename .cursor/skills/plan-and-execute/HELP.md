@@ -24,7 +24,7 @@ plan-and-execute is an **orchestrator** -- it invokes other skills/plugins at sp
 | **speckit** | Commands | Global: `~/.claude/commands/speckit.*.md` | Phase 1 (specify/clarify), Phase 3-4 (tasks/analyze) | Optional |
 | **claude-md-management** | Plugin | Global or project: `~/.claude/plugins/` | Phase 6: CLAUDE.md updates | Optional |
 | **doc-lint / doc-sync** | Skills | Project-local: `.claude/skills/` | Phase 6: documentation audit | Optional |
-| **Domain reviewer** | Agent | Project-local: `.claude/agents/` | Phase 6: domain-specific review | Optional (set via `DOMAIN_REVIEWER`) |
+| **Domain reviewer** | Agent | Project-local: `.claude/agents/` | Phase 6: domain-specific review | Default-on (`DOMAIN_REVIEWER=domain-reviewer`) |
 
 **If missing:** Each phase documents what happens when a dependency is unavailable -- typically a manual fallback or skip.
 
@@ -35,6 +35,7 @@ plan-and-execute is an **orchestrator** -- it invokes other skills/plugins at sp
   - Missing + fallback used -> log in `progress.md` and final summary.
   - Missing + no safe fallback -> block and escalate to user.
   - Missing + unused in this run -> do not log noise.
+- Domain reviewer is default-on: if `DOMAIN_REVIEWER=domain-reviewer` is missing, flag it (do not silently skip). Disable only via `DOMAIN_REVIEWER=none`.
 
 **Orchestration, not duplication:** plan-and-execute delegates to speckit for spec/task generation (Phase 4 "speckit path"), to ralph-loop for convergence (Phase 5), and to planning-with-files for context management (Phase 0). Its own Phase 4 "manual path" task format is a lightweight fallback for when speckit is not needed (enhancements without formal spec traceability).
 
@@ -88,7 +89,7 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `SPEC_DIR` | `specs` | Agent spec files (Topology C only) | `specs` |
 | `REVIEW_STANDARDS` | `docs/review-standards.md` | Review checklist path | `docs/review-standards.md` |
 | `ENV_CONFIG_POLICY` | `docs/env-config-policy.md` | Environment/config policy | `docs/env-config-policy.md` |
-| `DOMAIN_REVIEWER` | (none) | Domain reviewer agent name | `finanalyst-reviewer` |
+| `DOMAIN_REVIEWER` | `domain-reviewer` | Domain reviewer agent name (set `none` to disable) | `domain-reviewer` |
 | `TEST_CMD` | `python -m pytest` | Base test command | `uv run pytest` |
 | `LINT_CMD` | `ruff check .` | Linter command (empty to skip) | `flake8 .` |
 | `SECURITY_CMD` | `bandit -r . -ll` | Security scanner (empty to skip) | `bandit -r src/ -ll` |
@@ -113,7 +114,7 @@ plan-and-execute:
   TEST_CMD: "uv run pytest"
   LINT_CMD: "uv run ruff check ."
   SECURITY_CMD: "uv run bandit -r . -ll"
-  DOMAIN_REVIEWER: "my-domain-reviewer"
+  DOMAIN_REVIEWER: "domain-reviewer"
   REVIEW_STANDARDS: "docs/review-standards.md"
 ```
 
@@ -204,8 +205,8 @@ On first invocation, plan-and-execute checks for `.claude/.plan-and-execute-setu
 ### What it does
 
 1. **Auto-detects** your package manager (uv/poetry/pip), test runner, linter, security scanner, project structure, config framework, and .env patterns from the codebase
-2. **Asks 2-3 questions**: domain name, whether to create a domain reviewer agent, and logging preset (backend/cli-tool/skip)
-3. **Generates files**: `project-config.yaml`, `review-standards.md`, `env-config-policy.md`, domain reviewer agent (optional), `logging_config.py` (optional)
+2. **Asks 2 questions**: domain name and logging preset (backend/cli-tool/skip)
+3. **Generates files**: `project-config.yaml` (with `DOMAIN_REVIEWER: "domain-reviewer"` by default), `review-standards.md`, `env-config-policy.md`, domain reviewer agent, `logging_config.py` (optional)
 4. **Creates marker** `.claude/.plan-and-execute-setup.done` so setup doesn't trigger again
 5. **Prints a summary** showing what was generated and what still needs manual customization
 
@@ -214,8 +215,9 @@ Never overwrites existing files. To re-run setup, delete `.claude/.plan-and-exec
 ### What still needs manual attention after setup
 
 - `docs/review-standards.md` sections 2 (domain-specific rules) and 5 (invariants)
-- `.claude/agents/<name>-reviewer.md` domain-specific review criteria
+- `.claude/agents/domain-reviewer.md` domain-specific review criteria
 - Any auto-detected values that don't match your actual setup
+- If you want to disable domain reviewer, set `DOMAIN_REVIEWER: "none"` manually in `project-config.yaml`
 
 ### Alternative: Shell installer
 

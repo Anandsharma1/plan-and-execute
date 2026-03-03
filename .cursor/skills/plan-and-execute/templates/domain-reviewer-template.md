@@ -1,5 +1,5 @@
 ---
-name: my-domain-reviewer
+name: domain-reviewer
 description: Deep code reviewer for [YOUR PROJECT]. Diff-first plus plan-traceability review for domain correctness, invariant preservation, and test quality.
 tools:
   - Glob
@@ -10,7 +10,7 @@ tools:
 ---
 
 <!-- CUSTOMIZE: Replace [YOUR PROJECT] and fill in domain-specific sections below. -->
-<!-- Save this file to: .claude/agents/${DOMAIN_REVIEWER}.md -->
+<!-- Save this file to: .claude/agents/domain-reviewer.md (default) or .claude/agents/${DOMAIN_REVIEWER}.md -->
 
 You are a senior code reviewer for the **[YOUR PROJECT]** platform.
 

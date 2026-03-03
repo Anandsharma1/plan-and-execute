@@ -97,7 +97,7 @@ cp -r plan-and-execute/.agents/skills/domain-code-review/ <your-platform-skill-d
 
 ## Project Setup
 
-On first invocation, plan-and-execute detects that setup hasn't been completed and offers to run it automatically. Setup auto-detects your package manager, test runner, linter, and security scanner from the codebase, asks 2-3 questions (domain name, domain reviewer, logging preset), and generates all required config files. It never overwrites existing files.
+On first invocation, plan-and-execute detects that setup hasn't been completed and offers to run it automatically. Setup auto-detects your package manager, test runner, linter, and security scanner from the codebase, asks 2 questions (domain name, logging preset), and generates all required config files. It never overwrites existing files.
 
 **Generated files:**
 
@@ -106,10 +106,11 @@ On first invocation, plan-and-execute detects that setup hasn't been completed a
 | `.claude/project-config.yaml` | Parameter defaults (test/lint/security commands, logging policy) |
 | `docs/review-standards.md` | Review criteria for two-stage review -- customize sections 2 and 5 for your domain |
 | `docs/env-config-policy.md` | Environment and configuration rules -- review for your stack |
-| `.claude/agents/<name>-reviewer.md` | Domain-specific reviewer agent (optional) -- fill in domain review criteria |
+| `.claude/agents/domain-reviewer.md` | Domain-specific reviewer agent (default-on) -- fill in domain review criteria |
 | `logging_config.py` | Python logging configuration (if logging preset chosen) |
 
 To re-run setup later, delete `.claude/.plan-and-execute-setup.done` and invoke the skill again.
+To disable the domain reviewer manually, set `DOMAIN_REVIEWER: "none"` in `.claude/project-config.yaml`.
 
 **Alternative:** Use the shell-based installer for non-interactive environments:
 
@@ -130,12 +131,13 @@ plan-and-execute is an **orchestrator** -- it delegates to other skills at speci
 | **superpowers** | Optional | Phase 1: skip brainstorming path or do it manually. Phase 5: dispatch subagents directly. Phase 6: create PR manually. |
 | **speckit** | Optional | Use the manual task breakdown path instead -- plan-and-execute provides its own lightweight task format as a fallback. |
 | **claude-md-management** | Optional | Skip automatic CLAUDE.md revision; update manually if needed. |
-| **Domain reviewer agent** | Optional | Domain-specific review in Phase 6 is skipped entirely. Set the `DOMAIN_REVIEWER` parameter to enable. |
+| **Domain reviewer agent** | Default-on (recommended) | Uses `DOMAIN_REVIEWER=domain-reviewer` by default. If missing, the run flags it and recommends bootstrap. Disable manually with `DOMAIN_REVIEWER=none`. |
 
 Missing dependency behavior:
 - Missing optional dependency does not fail the run by itself.
 - If a missing dependency is needed by a chosen path, plan-and-execute uses a documented fallback.
 - Only fallback decisions are logged (missing + fallback, or missing + blocked); missing-but-unused dependencies are not logged to avoid noise.
+- Domain reviewer is default-on: if `domain-reviewer` is missing, it is flagged in progress/final summary.
 
 ---
 

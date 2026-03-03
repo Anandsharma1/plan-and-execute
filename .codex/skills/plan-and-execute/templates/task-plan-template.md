@@ -8,7 +8,7 @@
 | PLAN_DIR | docs/plans |
 | REVIEW_STANDARDS | [fill in] |
 | ENV_CONFIG_POLICY | [fill in] |
-| DOMAIN_REVIEWER | [fill in or "none"] |
+| DOMAIN_REVIEWER | domain-reviewer (set "none" to disable) |
 | TEST_CMD | [fill in] |
 | LINT_CMD | [fill in] |
 | SECURITY_CMD | [fill in] |
@@ -21,7 +21,7 @@
 | ralph-loop | [yes/no] | |
 | superpowers | [yes/no] | |
 | speckit | [yes/no] | |
-| Domain reviewer | [yes/no/not configured] | Agent: [name or "none"] |
+| Domain reviewer | [yes/no/default-missing] | Agent: [name or "none"] |
 
 ## Dependency Fallback Log
 | Phase | Missing dependency | Fallback used | Impact | Logged in progress.md |
@@ -89,7 +89,8 @@ Phase 1
 - [ ] Security check passed (or skipped if SECURITY_CMD not set)
 - [ ] Config sprawl check passed (or skipped if ENV_CONFIG_POLICY not set)
 - [ ] Domain review completed (/domain-code-review on full branch diff)
-- [ ] Domain reviewer agent dispatched (or skipped if DOMAIN_REVIEWER not set)
+- [ ] Domain reviewer agent dispatched (or explicitly disabled with DOMAIN_REVIEWER=none)
+- [ ] If default DOMAIN_REVIEWER is missing, flagged in progress.md and final summary
 - [ ] Review-learnings consolidated (patterns promoted to review-standards if 3+ occurrences)
 - [ ] Documentation gates passed (module-level, integration-level, project-level)
 - [ ] Final summary emitted

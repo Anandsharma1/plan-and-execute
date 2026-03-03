@@ -2,12 +2,12 @@
 
 This file is loaded by Phase 0 when `.claude/.plan-and-execute-setup.done` does not exist. It guides one-time project configuration.
 
-Auto-detect project configuration from the codebase, ask 2-3 questions, and generate all required config and review files.
+Auto-detect project configuration from the codebase, ask up to 2 questions, and generate all required config and review files.
 
 **Rules:**
 - Never overwrite existing files. If a target file exists, skip it and report "SKIP (exists)".
 - All detection is best-effort. If detection fails, use the skill default and note it in the summary.
-- Keep questions to 3 maximum. Do not ask about anything that can be auto-detected.
+- Keep questions to 2 maximum. Do not ask about anything that can be auto-detected.
 
 ---
 
@@ -43,7 +43,7 @@ Detected:
 
 ---
 
-## Stage B: Interactive Questions (3 max)
+## Stage B: Interactive Questions (2 max)
 
 Ask only what cannot be auto-detected:
 
@@ -52,13 +52,12 @@ Ask only what cannot be auto-detected:
 
 Used in: `domain-reviewer.md` header, `review-standards.md` section 2 heading.
 
-**Q2 — Domain reviewer** (yes/no):
-> "Create a domain-specific reviewer agent? You'll customize its review criteria later."
+**Default-on domain reviewer (no question):**
+- Set `DOMAIN_REVIEWER: "domain-reviewer"` in config by default
+- Generate `.claude/agents/domain-reviewer.md` from template with domain name filled in
+- If user wants to disable later, they must set `DOMAIN_REVIEWER: "none"` manually
 
-If yes: set `DOMAIN_REVIEWER` in config and generate `.claude/agents/<project-name>-reviewer.md` from template with the domain name filled in.
-If no: leave `DOMAIN_REVIEWER` unset, skip domain reviewer file generation.
-
-**Q3 — Logging preset** (only if no `logging:` block already exists in config):
+**Q2 — Logging preset** (only if no `logging:` block already exists in config):
 > "Logging policy — choose a preset:"
 >   1. `backend` — file, structured JSON, size rotation 10MB, 5 backups, INFO
 >   2. `cli-tool` — terminal only, human-readable, INFO
@@ -75,10 +74,10 @@ Generate the following files using templates from `./templates/`. Never overwrit
 
 | File | Source template | What gets filled in |
 |------|----------------|-------------------|
-| `.claude/project-config.yaml` | `./templates/project-config-example.yaml` | Auto-detected commands (uncommented), logging block if preset chosen |
+| `.claude/project-config.yaml` | `./templates/project-config-example.yaml` | Auto-detected commands (uncommented), default `DOMAIN_REVIEWER: "domain-reviewer"`, logging block if preset chosen |
 | `docs/review-standards.md` | `./templates/review-standards-template.md` | Layer mapping table from structure detection, domain name in section 2 heading |
 | `docs/env-config-policy.md` | `./templates/env-config-policy-template.md` | Config framework name in rule 4, .env pattern note in rule 3 |
-| `.claude/agents/<name>-reviewer.md` | `./templates/domain-reviewer-template.md` | Domain name in header and description (only if Q2 = yes) |
+| `.claude/agents/domain-reviewer.md` | `./templates/domain-reviewer-template.md` | Domain name in header and description (always generated) |
 | `review-learnings.md` | `./templates/review-learnings-template.md` | Unchanged (boilerplate) |
 | `logging_config.py` | `./templates/logging_config_template.py` | Preset values substituted (only if logging preset chosen) |
 
@@ -98,7 +97,7 @@ Setup complete. Generated files:
 | .claude/project-config.yaml       | Created | Review detected commands         |
 | docs/review-standards.md          | Created | Customize sections 2 and 5       |
 | docs/env-config-policy.md         | Created | Review rules 3-4 for your stack  |
-| .claude/agents/X-reviewer.md      | Created | Add domain-specific review rules |
+| .claude/agents/domain-reviewer.md | Created | Add domain-specific review rules |
 | review-learnings.md               | Created | No action needed                 |
 | logging_config.py                 | Created | Import in your app entrypoint    |
 

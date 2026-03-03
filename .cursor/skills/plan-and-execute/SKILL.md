@@ -23,7 +23,7 @@ This skill is an **orchestrator** -- it invokes other skills at specific phases 
 | **speckit** | Commands | Global (`~/.claude/commands/speckit.*.md`) | Phase 1 (specify, clarify), Phase 3 (specify gate), Phase 4 (tasks, analyze) | Optional | Use the manual paths instead -- plan-and-execute provides its own task breakdown format for when speckit is unavailable. |
 | **claude-md-management** | Plugin | Global or project (`~/.claude/plugins/`) | Phase 6 (CLAUDE.md update) | Optional | Skip CLAUDE.md revision; update manually if needed. |
 | **doc-lint / doc-sync** | Skills | Project-local (`.claude/skills/`) | Phase 6 (documentation gates) | Optional | Manually audit documentation for broken refs and staleness. |
-| **Domain reviewer** | Agent | Project-local (`.claude/agents/`) | Phase 6 (domain review) | Optional | Set `DOMAIN_REVIEWER` param. If unset, domain review is skipped entirely. |
+| **Domain reviewer** | Agent | Project-local (`.claude/agents/`) | Phase 6 (domain review) | Default-on (recommended) | Default `DOMAIN_REVIEWER=domain-reviewer`. If missing, flag and recommend bootstrap. Disable only by setting `DOMAIN_REVIEWER=none`. |
 
 ### Missing Dependency Policy (Portable Behavior)
 
@@ -64,7 +64,7 @@ At Phase 0, plan-and-execute should check which dependencies are available and l
 | ralph-loop | yes/no | |
 | superpowers | yes/no | |
 | speckit | yes/no | |
-| ${DOMAIN_REVIEWER} | yes/no/not configured | |
+| ${DOMAIN_REVIEWER} | yes/no/default-missing | |
 ```
 
 ## Parameters
@@ -80,7 +80,7 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | SPEC_DIR | `${PROJECT_ROOT}/specs` | Agent spec files (Topology C only) |
 | REVIEW_STANDARDS | `${PROJECT_ROOT}/docs/review-standards.md` | Module review checklist. Create from `./templates/review-standards-template.md` if missing. |
 | ENV_CONFIG_POLICY | `${PROJECT_ROOT}/docs/env-config-policy.md` | Environment/config policy. Create from `./templates/env-config-policy-template.md` if missing. |
-| DOMAIN_REVIEWER | (none — optional) | Agent name for domain-specific review in Phase 6 (e.g. `finanalyst-reviewer`, `schemabridge-reviewer`). If unset, domain review is skipped. |
+| DOMAIN_REVIEWER | `domain-reviewer` | Agent name for domain-specific review in Phase 6. Disable only by setting `DOMAIN_REVIEWER=none`. |
 | TEST_CMD | `python -m pytest` | Base test command (run from `${PROJECT_ROOT}`). Override for your runner: `uv run pytest`, `poetry run pytest`, etc. |
 | LINT_CMD | `ruff check ${PROJECT_ROOT}/` | Linter command. Set to empty string to skip. Override for your linter: `flake8`, `pylint`, etc. |
 | SECURITY_CMD | `bandit -r ${PROJECT_ROOT}/ -ll` | Security scanner command. Set to empty string to skip. |
@@ -103,7 +103,7 @@ plan-and-execute:
   LINT_CMD: "uv run ruff check ."
   SECURITY_CMD: "uv run bandit -r . -ll"
   INTEGRATION_MARKERS: "-m integration"
-  DOMAIN_REVIEWER: "my-domain-reviewer"
+  DOMAIN_REVIEWER: "domain-reviewer"
   REVIEW_STANDARDS: "docs/review-standards.md"
   ENV_CONFIG_POLICY: "docs/env-config-policy.md"
   DOC_TASK_MODE: "auto"
@@ -207,6 +207,8 @@ If the script is unavailable or if catchup report shows unsynced context, do man
 2. If found, load `plan-and-execute` section as base values (including `logging:` block if present)
 3. Apply any invocation-time overrides on top
 4. Apply skill defaults for anything still unset
+   - If `DOMAIN_REVIEWER` is unset, default to `domain-reviewer`
+   - Only explicit `DOMAIN_REVIEWER=none` disables the domain reviewer agent
 5. Log resolved parameters in `task_plan.md` Parameters table
 6. If `logging:` block exists in config, note it in Parameters table — this drives code-quality review enforcement. If absent and this is the first run, inform user: "No logging policy configured. Delete `.claude/.plan-and-execute-setup.done` and re-run to trigger setup, or add a `logging:` section to `project-config.yaml` manually."
 
@@ -222,6 +224,12 @@ Apply the Missing Dependency Policy above:
 - Do not fail just because an optional dependency is absent
 - Log only decision events (fallback used, or blocked with no fallback)
 - Keep no-op missing dependencies out of logs
+
+For default-on domain reviewer:
+- If `DOMAIN_REVIEWER=domain-reviewer` and `.claude/agents/domain-reviewer.md` is missing, mark dependency status as `default-missing`
+- Add a flag entry in `task_plan.md` Decisions Made and `progress.md`
+- Recommend bootstrapping from `./templates/domain-reviewer-template.md`
+- Continue execution (do not block)
 
 **Conflict checks BEFORE touching any files:**
 
@@ -703,7 +711,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
    - If domain review finds CRITICAL issues: fix before proceeding to the next batch
    - If domain review finds Important issues: log in `progress.md`, fix before Phase 6
-   - If `DOMAIN_REVIEWER` agent is configured, dispatch it as well
+   - Dispatch `${DOMAIN_REVIEWER}` unless `DOMAIN_REVIEWER=none`; if default reviewer is missing, flag and continue
 
    **This gate replaces per-task spec+code-quality review when using the Topology B practical simplification** (many parallel independent tasks with self-review). It ensures review coverage without requiring 3 agents per task.
 
@@ -810,7 +818,8 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
 4. **Domain review** (skip for infra/config-only changes):
    Invoke `/domain-code-review` skill on the full branch diff. This skill reads `${REVIEW_STANDARDS}`, `${ENV_CONFIG_POLICY}`, and the `logging:` config block, then dispatches a reviewer subagent.
-   - If `DOMAIN_REVIEWER` is also set, dispatch that agent too (it may have domain-specific criteria beyond what review-standards.md covers)
+   - With default-on behavior, dispatch `${DOMAIN_REVIEWER}` unless `DOMAIN_REVIEWER=none`
+   - If `DOMAIN_REVIEWER=domain-reviewer` but file is missing, flag it in `progress.md` and final summary
    - CRITICAL findings must be fixed before PR; Important findings require acknowledgment
 
 5. **Consolidate review findings across all Phase 5 iterations:**
@@ -862,6 +871,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - What was implemented (per task)
    - RALPH results table (final passing state)
    - Dependency fallback decisions (only if any occurred: missing dependency, fallback used, impact)
+   - Domain reviewer status (`used` | `disabled-by-user` | `default-missing-flagged`)
    - Plan file path
    - Recommendation for follow-up work (if any)
 
@@ -887,6 +897,7 @@ This is the primary advantage of this unified skill -- the planning files make y
 - **Never skip the Phase 5 step 2 protocol re-read** -- this is the primary defense against context compaction losing process requirements
 - **Never declare Phase 5 complete without passing the Phase 5->6 hard gate** (step 13) -- all tasks implemented, batch review run, RALPH finalization passed
 - **Never skip Phase 6** -- it is mandatory, not optional. Phase 6 is where domain-code-review, security check, review-learnings consolidation, and documentation gates happen. "All tasks done" does NOT mean the feature is complete.
+- **Treat domain reviewer as default-on** -- if `DOMAIN_REVIEWER=domain-reviewer` is missing, flag it; only `DOMAIN_REVIEWER=none` is a valid opt-out.
 - **Never treat missing optional dependencies as implicit failures** -- use fallback paths and log only decision events.
 - **Always apply the 2-Action Rule** during research -- write findings to disk after every 2 reads/searches
 - **Always update `progress.md`** after major milestones -- this is your session insurance
@@ -905,4 +916,4 @@ This is the primary advantage of this unified skill -- the planning files make y
 | Lightweight context tracking without formal planning | `planning-with-files` directly |
 | Iterative convergence on a single task | `ralph-loop` plugin directly |
 | Project-specific standards review | `/domain-code-review` (standalone, or invoked by Phase 5/6) |
-| Domain review for project modules | `${DOMAIN_REVIEWER}` agent directly (if configured) |
+| Domain review for project modules | `${DOMAIN_REVIEWER}` agent directly (default: `domain-reviewer`; disable with `DOMAIN_REVIEWER=none`) |

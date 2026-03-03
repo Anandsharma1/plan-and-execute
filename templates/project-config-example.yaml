@@ -31,7 +31,7 @@ plan-and-execute:
   # --- Review & policy files ---
   REVIEW_STANDARDS: "docs/review-standards.md"   # Copy from templates/review-standards-template.md
   ENV_CONFIG_POLICY: "docs/env-config-policy.md" # Copy from templates/env-config-policy-template.md
-  # DOMAIN_REVIEWER: "my-domain-reviewer"        # Agent in .claude/agents/ -- leave unset to skip domain review
+  DOMAIN_REVIEWER: "domain-reviewer"             # Default-on. Set to "none" to disable domain reviewer.
 
   # --- Planning ---
   PLAN_DIR: "docs/plans"
