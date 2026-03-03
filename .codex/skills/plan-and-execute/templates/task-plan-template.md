@@ -23,6 +23,11 @@
 | speckit | [yes/no] | |
 | Domain reviewer | [yes/no/not configured] | Agent: [name or "none"] |
 
+## Dependency Fallback Log
+| Phase | Missing dependency | Fallback used | Impact | Logged in progress.md |
+|---|---|---|---|---|
+| [fill in or "none"] | | | | |
+
 ## Goal
 [One sentence from user's request]
 

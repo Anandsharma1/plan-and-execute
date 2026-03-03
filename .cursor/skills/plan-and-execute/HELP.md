@@ -28,6 +28,14 @@ plan-and-execute is an **orchestrator** -- it invokes other skills/plugins at sp
 
 **If missing:** Each phase documents what happens when a dependency is unavailable -- typically a manual fallback or skip.
 
+**Missing-dependency logging policy:**
+- Missing optional dependency is not an automatic failure.
+- If a chosen phase path needs it, use a documented fallback and continue.
+- Log only decision events:
+  - Missing + fallback used -> log in `progress.md` and final summary.
+  - Missing + no safe fallback -> block and escalate to user.
+  - Missing + unused in this run -> do not log noise.
+
 **Orchestration, not duplication:** plan-and-execute delegates to speckit for spec/task generation (Phase 4 "speckit path"), to ralph-loop for convergence (Phase 5), and to planning-with-files for context management (Phase 0). Its own Phase 4 "manual path" task format is a lightweight fallback for when speckit is not needed (enhancements without formal spec traceability).
 
 ---

@@ -25,6 +25,18 @@ This skill is an **orchestrator** -- it invokes other skills at specific phases 
 | **doc-lint / doc-sync** | Skills | Project-local (`.claude/skills/`) | Phase 6 (documentation gates) | Optional | Manually audit documentation for broken refs and staleness. |
 | **Domain reviewer** | Agent | Project-local (`.claude/agents/`) | Phase 6 (domain review) | Optional | Set `DOMAIN_REVIEWER` param. If unset, domain review is skipped entirely. |
 
+### Missing Dependency Policy (Portable Behavior)
+
+When running on agents/platforms where some integrations are unavailable (for example Claude-specific plugins), apply this policy:
+
+- Missing optional dependency is **not** an automatic failure.
+- If the missing dependency is required by the chosen phase path, use the documented manual fallback and continue.
+- Log only **decision events**, not every missing tool:
+  - **Missing + fallback used:** log in `progress.md` and `task_plan.md` Decisions Made.
+  - **Missing + no safe fallback:** stop and escalate to user with the blocker.
+  - **Missing + never used in this run:** no log (avoid noise).
+- Final summary must include a "Dependency fallback decisions" section **only when at least one decision event occurred**.
+
 ### Orchestration vs. Duplication Boundaries
 
 plan-and-execute does NOT reimplement these skills. It **delegates** to them:
@@ -206,6 +218,10 @@ If the script is unavailable or if catchup report shows unsynced context, do man
 - `${DOMAIN_REVIEWER}`: Check if the agent file exists at `.claude/agents/${DOMAIN_REVIEWER}.md`
 
 This determines which paths are available in later phases. If a dependency is missing, the skill falls back to manual alternatives (documented in each phase).
+Apply the Missing Dependency Policy above:
+- Do not fail just because an optional dependency is absent
+- Log only decision events (fallback used, or blocked with no fallback)
+- Keep no-op missing dependencies out of logs
 
 **Conflict checks BEFORE touching any files:**
 
@@ -258,6 +274,7 @@ This determines which paths are available in later phases. If a dependency is mi
 - For Path A, brainstorming must complete and produce a design doc BEFORE speckit is invoked. The design doc is the input to `speckit:specify`.
 - For Path A and C, the `spec.md` produced here replaces `findings.md` as the primary requirements source in Phase 3 (Plan Generation). `findings.md` still supplies codebase research from Phase 2.
 - For Path B, the design doc feeds into Phase 3 as supplementary context alongside `findings.md`.
+- If the user selects a path that requires a missing dependency, present the nearest valid fallback path and record the decision as a dependency fallback event.
 - Log the chosen path and any outputs in `progress.md` and `task_plan.md` Decisions Made table.
 
 **Update `task_plan.md`:** Set Current Phase to Phase 1, record the chosen path. After completion, update Phase 1 status to complete.
@@ -844,6 +861,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 7. **Emit final summary:**
    - What was implemented (per task)
    - RALPH results table (final passing state)
+   - Dependency fallback decisions (only if any occurred: missing dependency, fallback used, impact)
    - Plan file path
    - Recommendation for follow-up work (if any)
 
@@ -869,6 +887,7 @@ This is the primary advantage of this unified skill -- the planning files make y
 - **Never skip the Phase 5 step 2 protocol re-read** -- this is the primary defense against context compaction losing process requirements
 - **Never declare Phase 5 complete without passing the Phase 5->6 hard gate** (step 13) -- all tasks implemented, batch review run, RALPH finalization passed
 - **Never skip Phase 6** -- it is mandatory, not optional. Phase 6 is where domain-code-review, security check, review-learnings consolidation, and documentation gates happen. "All tasks done" does NOT mean the feature is complete.
+- **Never treat missing optional dependencies as implicit failures** -- use fallback paths and log only decision events.
 - **Always apply the 2-Action Rule** during research -- write findings to disk after every 2 reads/searches
 - **Always update `progress.md`** after major milestones -- this is your session insurance
 - **Always include project standards in subagent prompts** -- subagents do NOT inherit CLAUDE.md, hookify rules, or loaded skills. The orchestrator must paste relevant standards into every implementer prompt.

@@ -132,6 +132,11 @@ plan-and-execute is an **orchestrator** -- it delegates to other skills at speci
 | **claude-md-management** | Optional | Skip automatic CLAUDE.md revision; update manually if needed. |
 | **Domain reviewer agent** | Optional | Domain-specific review in Phase 6 is skipped entirely. Set the `DOMAIN_REVIEWER` parameter to enable. |
 
+Missing dependency behavior:
+- Missing optional dependency does not fail the run by itself.
+- If a missing dependency is needed by a chosen path, plan-and-execute uses a documented fallback.
+- Only fallback decisions are logged (missing + fallback, or missing + blocked); missing-but-unused dependencies are not logged to avoid noise.
+
 ---
 
 ## Usage
