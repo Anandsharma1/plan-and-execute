@@ -480,9 +480,20 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
 1. **Re-read `task_plan.md`** -- confirm you're in Phase 5, the plan is approved, and note the chosen topology.
 
-2. **Pre-execution gate:** Verify NOT on main/master branch. If on main -> stop and ask user to create a feature branch or use a git worktree.
+2. **Mandatory protocol re-read** -- before dispatching ANY task, re-read the following from the skill directory to refresh the full process in context:
+   - `./implementer-prompt.md` -- how implementer subagents should be prompted
+   - `./spec-reviewer-prompt.md` -- how spec compliance review works
+   - `./code-quality-reviewer-prompt.md` -- how code quality review works
+   - If `${CONTEXT_DIR}/review-learnings.md` exists, read it
+   - If `${REVIEW_STANDARDS}` exists, read it
 
-3. **Read the plan** from `docs/plans/` and dispatch according to topology. All topologies use a **two-stage review** (spec compliance then code quality) -- adapted to the execution unit (task for A/B, agent for C).
+   **Why this step exists:** After context compaction, the orchestrator retains WHAT tasks to do but loses HOW each task should be executed (review gates, prompt structure, dispatch protocol). This re-read prevents the most common failure mode: dispatching implementation-only agents without review stages.
+
+   **This step is NOT optional.** If you find yourself thinking "I already know the process" or "I'll save context by skipping this" -- that is exactly the failure mode this step prevents. Re-read the files.
+
+3. **Pre-execution gate:** Verify NOT on main/master branch. If on main -> stop and ask user to create a feature branch or use a git worktree.
+
+4. **Read the plan** from `docs/plans/` and dispatch according to topology. All topologies use a **two-stage review** (spec compliance then code quality) -- adapted to the execution unit (task for A/B, agent for C).
 
    > **Known gap -- ralph-loop per-task prompt assembly is manual.**
    > The topologies below use the SDD model (fresh subagent per task). If you choose to use `/ralph-loop` for a specific convergence-heavy task instead, there is no skill that auto-generates the prompt from the task definition. You must write it by hand:
@@ -579,6 +590,18 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    3. Independent workstreams run in parallel
    4. Main orchestrator waits for all workstreams to complete before RALPH finalization
 
+   **Critical: subagent prompt completeness.** Subagents do NOT inherit the orchestrator's loaded skills, CLAUDE.md, hookify rules, or context. When dispatching implementer subagents (whether directly or via workstream orchestrators), the prompt MUST include:
+   - The full task text (not a reference to the plan file)
+   - Relevant architectural context (models, protocols, patterns)
+   - Project coding standards (from CLAUDE.md: logging format, exception handling, import order, type hints)
+   - Self-review instructions (from `./implementer-prompt.md`)
+   - Test quality expectations (BDD style, no filler tests, verify real behavior)
+
+   **Practical simplification for Topology B:** When many independent tasks can run in parallel and the orchestrator has high confidence in the task definitions (clear acceptance criteria, well-isolated scope), the orchestrator MAY dispatch implementation-only agents without per-task spec+code-quality review subagents. In this case:
+   - Each implementer MUST still perform the self-review from `./implementer-prompt.md`
+   - The orchestrator MUST run a **batch review gate** after each parallel batch completes (see step 5a below)
+   - This trade-off exchanges per-task review granularity for throughput -- use it only when tasks are truly independent and well-specified
+
    **Rules:**
    - No shared mutable state between workstreams
    - Each workstream reports: tasks completed, review outcomes, files changed
@@ -643,42 +666,60 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./agent-spec-reviewer-prompt.md` -- agent-level spec verification (outputs, steps, file ownership, RALPH criteria, boundaries)
    - `./code-quality-reviewer-prompt.md` -- same quality reviewer, scoped to agent's changed files
 
-4. **Phase boundary gate** -- after all tasks in a plan phase complete, before starting the next phase:
+5. **Phase boundary gate** -- after all tasks in a plan phase complete, before starting the next phase:
    ```bash
    ${TEST_CMD} ${INTEGRATION_MARKERS}
    ```
    All tests must pass (0 failures, 0 errors) before proceeding. If tests fail at a phase boundary, apply the 3-Strike Error Protocol within the current phase -- do NOT start the next phase with a broken baseline.
 
-5. **Update `progress.md` after each major milestone** -- log completed steps, files modified, errors encountered, and RALPH assessment results. For Agent Team topology, log per-agent completion status.
+   5a. **Batch review gate** (mandatory after each parallel batch or plan phase completes):
 
-6. **Apply the 3-Strike Error Protocol:**
+   After tests pass at the phase boundary, run lint and domain-code-review on the cumulative diff for the batch:
+
+   ```bash
+   ${LINT_CMD}  # 0 violations required -- fix any before proceeding
+   ```
+
+   Then invoke `/domain-code-review` on the diff covering the completed batch (from the pre-batch SHA to HEAD). This catches project-specific standards violations (review-standards.md, env-config-policy, logging) that individual implementer self-reviews may miss.
+
+   - If domain review finds CRITICAL issues: fix before proceeding to the next batch
+   - If domain review finds Important issues: log in `progress.md`, fix before Phase 6
+   - If `DOMAIN_REVIEWER` agent is configured, dispatch it as well
+
+   **This gate replaces per-task spec+code-quality review when using the Topology B practical simplification** (many parallel independent tasks with self-review). It ensures review coverage without requiring 3 agents per task.
+
+   **When NOT using the simplification** (full per-task review), this gate is still run as an additional cross-cutting check -- it catches issues that span multiple tasks (inconsistent patterns, integration gaps).
+
+6. **Update `progress.md` after each major milestone** -- log completed steps, files modified, errors encountered, and RALPH assessment results. For Agent Team topology, log per-agent completion status.
+
+7. **Apply the 3-Strike Error Protocol:**
    - Attempt 1: Diagnose and fix
    - Attempt 2: Alternative approach
    - Attempt 3: Broader rethink
    - After 3 failures: Escalate to user
    - Log ALL attempts in `progress.md` Error Log (and the Errors Encountered section of `task_plan.md` for structured tracking)
 
-7. **Mid-Execution Plan Change:** If the user requests a scope change during execution:
+8. **Mid-Execution Plan Change:** If the user requests a scope change during execution:
    - Pause execution -- do NOT continue with the stale plan
    - Update `progress.md` with what's completed so far
    - Branch the decision: minor tweak (edit plan in-place, note the amendment in `findings.md`) vs. significant change (return to Phase 3, re-generate and re-analyse)
    - Never silently absorb a scope change -- log it in `task_plan.md` Decisions Made table
 
-8. **Subagent crash/timeout recovery (Topology A/B):** If a subagent (implementer, reviewer) fails to return or errors out:
+9. **Subagent crash/timeout recovery (Topology A/B):** If a subagent (implementer, reviewer) fails to return or errors out:
    - Use the **Context Recovery Protocol** (see below) -- planning-with-files restores session state
    - Check `git status` and `git log -3` to see what the subagent committed before crashing
    - Re-dispatch a fresh subagent with the remaining work -- do NOT retry blindly from scratch
    - Log the crash in `progress.md` Error Log with what was recovered
 
-9. **Agent crash recovery (Topology C only):** If a dedicated agent fails or times out mid-run:
-   - Use the **Context Recovery Protocol** to restore orchestrator state
-   - Check `git log --oneline -10` and `git diff --stat` to identify which steps the agent completed before crashing
-   - Run the **file ownership check** on any files the agent touched -- if unauthorized changes exist, restore from the pre-agent snapshot (`git checkout <PRE_AGENT_SHA> -- <file>`) before re-launching
-   - Re-launch the agent with an explicit "start from step N" instruction listing only the remaining unfinished steps -- do NOT re-run completed steps
-   - Re-run spec compliance review on ALL steps the re-launched agent executes, including those it inherited from the crashed run (partial work may be inconsistent)
-   - Log the crash in `progress.md` with: which steps completed, which were partial, what was restored
+10. **Agent crash recovery (Topology C only):** If a dedicated agent fails or times out mid-run:
+    - Use the **Context Recovery Protocol** to restore orchestrator state
+    - Check `git log --oneline -10` and `git diff --stat` to identify which steps the agent completed before crashing
+    - Run the **file ownership check** on any files the agent touched -- if unauthorized changes exist, restore from the pre-agent snapshot (`git checkout <PRE_AGENT_SHA> -- <file>`) before re-launching
+    - Re-launch the agent with an explicit "start from step N" instruction listing only the remaining unfinished steps -- do NOT re-run completed steps
+    - Re-run spec compliance review on ALL steps the re-launched agent executes, including those it inherited from the crashed run (partial work may be inconsistent)
+    - Log the crash in `progress.md` with: which steps completed, which were partial, what was restored
 
-10. **RALPH Finalization Loop:**
+11. **RALPH Finalization Loop:**
 
     **Use ralph-loop when:** well-defined tasks with clear pass/fail criteria, iterative refinement, greenfield code where automated checks can verify correctness.
 
@@ -715,7 +756,18 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
     **For Agent Team (Topology C):** After the RALPH loop passes on each agent's scope, run a final cross-agent check -- verify no agent regressed another agent's RALPH criteria.
 
-11. **Update `progress.md`:** Log RALPH results table (each criterion: met/failed/escalated), loop iterations, topology execution summary.
+12. **Update `progress.md`:** Log RALPH results table (each criterion: met/failed/escalated), loop iterations, topology execution summary.
+
+13. **Phase 5 -> Phase 6 hard gate.** Phase 5 is NOT complete until ALL of the following are true:
+    - All tasks in the plan are implemented and committed
+    - All phase boundary gates (step 5) have passed
+    - At least one batch review gate (step 5a) has been run on the cumulative diff
+    - RALPH finalization (step 11) has passed, OR the user has explicitly acknowledged any remaining failures
+    - `progress.md` has been updated with the RALPH results
+
+    **Do NOT update `task_plan.md` Phase 5 status to "complete" or declare execution done until this gate passes.** The most common failure mode is declaring "all tasks finished" after implementation without running RALPH finalization or batch review. If you find yourself about to say "execution complete" or "all 22 tasks done" -- check this gate first.
+
+    After this gate passes, update `task_plan.md` Phase 5 status to "complete" and proceed to Phase 6.
 
 ## Phase 6: Finalization
 
@@ -812,8 +864,12 @@ This is the primary advantage of this unified skill -- the planning files make y
 - **Never use `task_plan.md` as the implementation plan** -- that's `docs/plans/*.md`
 - **Never proceed from Phase 3 to Phase 4 without user approval** on the generated plan
 - **Never proceed from Phase 4 to Phase 5** without tasks appended to the plan file
+- **Never skip the Phase 5 step 2 protocol re-read** -- this is the primary defense against context compaction losing process requirements
+- **Never declare Phase 5 complete without passing the Phase 5->6 hard gate** (step 13) -- all tasks implemented, batch review run, RALPH finalization passed
+- **Never skip Phase 6** -- it is mandatory, not optional. Phase 6 is where domain-code-review, security check, review-learnings consolidation, and documentation gates happen. "All tasks done" does NOT mean the feature is complete.
 - **Always apply the 2-Action Rule** during research -- write findings to disk after every 2 reads/searches
 - **Always update `progress.md`** after major milestones -- this is your session insurance
+- **Always include project standards in subagent prompts** -- subagents do NOT inherit CLAUDE.md, hookify rules, or loaded skills. The orchestrator must paste relevant standards into every implementer prompt.
 - **`superpowers:brainstorming` in Phase 1 is intentional** -- it is explicitly invoked by user choice, not an auto-trigger. Do not suppress it. However, if superpowers skills auto-trigger during Phases 2-6, follow plan-and-execute protocol instead. Do not follow the superpowers flow in parallel -- it creates a duplicate dispatch loop.
 - **Do not re-run plan analysis** in Phase 5 -- the plan was already validated in Phase 3.
 - **Tests must verify real behavior, not exist for count.** Every test must answer: "what business-level or functional behavior does this prove works?" Tests that merely exercise code paths, assert mocks were called, or restate the implementation are worthless. Reject them in review.

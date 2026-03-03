@@ -18,6 +18,17 @@ You are implementing Task N: [task name]
 
 Work from: [directory]
 
+## Project Standards
+
+[PASTE relevant standards from CLAUDE.md / .claude/CLAUDE.md here. At minimum include:]
+- Logging: Use lazy `%` formatting (`logger.info("msg: %s", var)`), not f-strings in log calls
+- Exceptions: Explicitly re-raise with `from e`; avoid bare `except Exception`
+- Imports: stdlib -> third-party -> local
+- Type hints: All function parameters and return values
+- Testing: pytest, BDD style (Given-When-Then), prefer integration over unit tests
+- Line length: 88 characters (Black standard)
+- Data structures: Use project-preferred typed structures (for example dataclasses/Pydantic where applicable)
+
 ## Before You Begin
 
 If you have questions about:

@@ -71,18 +71,23 @@ Phase 1
 - **Status:** pending
 
 ### Phase 5: Execution
+- [ ] Re-read protocol files (implementer-prompt.md, reviewer prompts, review-standards, review-learnings.md)
 - [ ] Execute plan via topology-dependent model (SDD for A/B, dedicated agents for C)
-- [ ] Two-stage review per execution unit (spec compliance -> code quality)
+- [ ] Include project standards in all subagent prompts (subagents don't inherit CLAUDE.md)
+- [ ] Run batch review gate after each parallel batch (lint + domain-code-review on cumulative diff)
 - [ ] Update progress.md after each major milestone
-- [ ] RALPH finalization loop passes
+- [ ] RALPH finalization loop passes (or user acknowledges remaining failures)
+- [ ] Phase 5->6 hard gate: all tasks done, batch review run, RALPH passed
 - **Status:** pending
 
 ### Phase 6: Finalization
-- [ ] RALPH finalization loop all-green
 - [ ] Security check passed (or skipped if SECURITY_CMD not set)
 - [ ] Config sprawl check passed (or skipped if ENV_CONFIG_POLICY not set)
-- [ ] Domain review completed (or skipped if DOMAIN_REVIEWER not set)
-- [ ] Documentation updated (doc-lint + doc-sync)
+- [ ] Domain review completed (/domain-code-review on full branch diff)
+- [ ] Domain reviewer agent dispatched (or skipped if DOMAIN_REVIEWER not set)
+- [ ] Review-learnings consolidated (patterns promoted to review-standards if 3+ occurrences)
+- [ ] Documentation gates passed (module-level, integration-level, project-level)
+- [ ] Final summary emitted
 - [ ] Branch ready for merge/PR
 - **Status:** pending
 

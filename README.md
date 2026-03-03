@@ -167,8 +167,8 @@ This is a separate skill (`domain-code-review/`) that ships alongside plan-and-e
 | 2 | Research | Codebase exploration with 2-action write rule | `findings.md` populated with discoveries, blast radius, open questions |
 | 3 | Plan Generation | Formal plan with 7-dimension critical analysis | Approved plan file in `docs/plans/` |
 | 4 | Task Breakdown | Decompose approved plan into atomic tasks | Tasks appended to the approved plan file |
-| 5 | Execution | SDD dispatch per topology with two-stage review | Implemented code, commits, `review-learnings.md` updated |
-| 6 | Finalization | Security scan, config check, domain review, documentation gates | Final summary, branch ready for PR |
+| 5 | Execution | Protocol re-read, SDD dispatch per topology, batch review gates, RALPH finalization | Implemented code, commits, `review-learnings.md` updated |
+| 6 | Finalization | Security scan, config check, domain review, review-learnings consolidation, documentation gates | Final summary, branch ready for PR |
 
 ---
 

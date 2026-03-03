@@ -147,8 +147,8 @@ plan-and-execute:
 | 2 | Research & Discovery | Codebase exploration, findings written to disk every 2 actions |
 | 3 | Plan Generation & Analysis | Inline plan + 7-dimension analysis + user approval gate |
 | 4 | Task Breakdown | Atomic tasks appended to approved plan.md |
-| 5 | Execution | SDD dispatch loop per topology + RALPH finalization |
-| 6 | Finalization | Security check, config check, domain review, doc gates |
+| 5 | Execution | Protocol re-read, SDD dispatch per topology, batch review gates, RALPH finalization, Phase 5->6 hard gate |
+| 6 | Finalization | Security check, config check, domain review, review-learnings consolidation, doc gates |
 
 ---
 
@@ -241,6 +241,22 @@ entire execution model. Default to Single Agent (A) unless the task clearly has
 multiple independent workstreams. Topology C (Agent Team) is for large parallel builds
 only -- the coordination overhead is significant.
 
+**Subagents don't inherit your context.** Agents dispatched via the Task tool do NOT
+get CLAUDE.md, session hooks, or loaded skills. The orchestrator must paste relevant
+project standards (logging format, exception handling, import order, type hints) into
+every implementer prompt. The implementer-prompt.md template has a Project Standards
+section for this purpose.
+
+**Phase 5 has mandatory gates.** Three enforcement points prevent skipping process:
+1. **Protocol re-read (step 2)**: Before any dispatch, re-read the prompt templates and review standards. This prevents context compaction from dropping process requirements.
+2. **Batch review gate (step 5a)**: After each parallel batch, run lint + `/domain-code-review` on the cumulative diff. This catches cross-task issues that individual self-reviews miss.
+3. **Hard gate (step 13)**: Phase 5 cannot be declared complete until all tasks are done, batch review has run, and RALPH finalization has passed. "All tasks implemented" != "Phase 5 complete".
+
+**Phase 6 is mandatory, not optional.** Phase 6 runs domain-code-review, security
+check, review-learnings consolidation, and documentation gates. Completing all tasks
+in Phase 5 does NOT mean the feature is done -- Phase 6 is where project standards
+compliance is verified.
+
 **The plan file is the canonical source.** The approved plan.md drives everything in
 Phases 4-6. If you need to change scope, update the plan (minor tweak) or return to
 Phase 3 (significant change). Never silently absorb scope changes.
@@ -287,3 +303,5 @@ parallel -- it creates a duplicate dispatch loop and confuses tracking.
 | Security scanner may not be installed | Set `SECURITY_CMD` to empty; review CWE items manually using code-quality-reviewer |
 | ralph-loop prompt assembly is manual | No skill auto-generates a per-task ralph-loop prompt from tasks.md; write it by hand using the template in Phase 5 -- paste task text + relevant review-standards items + completion promise |
 | `SCAN_MODE=full` is a convention, not enforced | Nothing prevents an agent from reading docs in full mode; the discipline is in following the parameter's intent |
+| Subagents don't inherit CLAUDE.md or skills | Orchestrator must paste project standards into every implementer prompt (use the Project Standards section in implementer-prompt.md) |
+| Context compaction drops process steps | The protocol re-read (Phase 5 step 2) and session-resume reminders (if configured) mitigate this but cannot fully prevent it |
