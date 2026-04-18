@@ -31,6 +31,66 @@ copy_if_missing "$SCRIPT_DIR/templates/review-standards-template.md" "$TARGET/do
 copy_if_missing "$SCRIPT_DIR/templates/env-config-policy-template.md" "$TARGET/docs/env-config-policy.md"
 copy_if_missing "$SCRIPT_DIR/templates/domain-reviewer-template.md" "$TARGET/.claude/agents/domain-reviewer.md"
 copy_if_missing "$SCRIPT_DIR/templates/project-config-example.yaml" "$TARGET/.claude/project-config.yaml"
+copy_if_missing "$SCRIPT_DIR/templates/review-preamble-template.md" "$TARGET/.claude/shared/review-preamble.md"
+
+# --- Install phase_guard.sh Stop hook ---
+# Copies the hook script and registers it in .claude/settings.json.
+# If a Stop hook array already exists (e.g. from CrossAI), appends rather than overwrites.
+HOOK_DEST="$TARGET/.claude/hooks/phase_guard.sh"
+SETTINGS_FILE="$TARGET/.claude/settings.json"
+
+mkdir -p "$(dirname "$HOOK_DEST")"
+if [ ! -f "$HOOK_DEST" ]; then
+  cp "$SCRIPT_DIR/hooks/phase_guard.sh" "$HOOK_DEST"
+  chmod +x "$HOOK_DEST"
+  echo "  CREATED: $HOOK_DEST"
+else
+  echo "  SKIP (exists): $HOOK_DEST"
+fi
+
+# Register the Stop hook in settings.json using Python for safe JSON editing
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$SETTINGS_FILE" "$HOOK_DEST" <<'PY'
+import json, os, sys
+
+settings_path = sys.argv[1]
+hook_path = sys.argv[2]
+
+# Load or create settings.json
+if os.path.exists(settings_path):
+    with open(settings_path) as f:
+        settings = json.load(f)
+else:
+    settings = {}
+
+hook_command = hook_path
+hook_entry = {"type": "command", "command": hook_command}
+
+# Ensure hooks.Stop array exists
+settings.setdefault("hooks", {})
+settings["hooks"].setdefault("Stop", [])
+
+# Check if hook already registered (avoid duplicates)
+stop_hooks = settings["hooks"]["Stop"]
+already_registered = any(
+    (isinstance(h, dict) and h.get("command") == hook_command) or
+    (isinstance(h, str) and h == hook_command)
+    for h in stop_hooks
+)
+
+if not already_registered:
+    stop_hooks.append(hook_entry)
+    os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
+    print(f"  REGISTERED: phase_guard.sh Stop hook in {settings_path}")
+else:
+    print(f"  SKIP (already registered): phase_guard.sh Stop hook")
+PY
+else
+  echo "  WARNING: python3 not found — phase_guard.sh hook not registered in settings.json."
+  echo "           Add it manually: settings.json hooks.Stop array, command: $HOOK_DEST"
+fi
 
 # --- Interactive logging setup ---
 echo ""

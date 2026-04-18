@@ -9,21 +9,10 @@ plan-and-execute:
   PROJECT_ROOT: "."                              # "." if CWD is already root, or "my-app" for monorepo
   # MODULE_NAME: "auth"                          # Uncomment if you always work on one module
 
-  # --- Commands ---
-  # Python with uv:
+  # --- Commands (uv required) ---
   TEST_CMD: "uv run pytest"
   LINT_CMD: "uv run ruff check ."
   SECURITY_CMD: "uv run bandit -r . -ll"
-
-  # Python with poetry:
-  # TEST_CMD: "poetry run pytest"
-  # LINT_CMD: "poetry run ruff check ."
-  # SECURITY_CMD: "poetry run bandit -r . -ll"
-
-  # Python with plain pip/venv:
-  # TEST_CMD: "python -m pytest"
-  # LINT_CMD: "ruff check ."
-  # SECURITY_CMD: "bandit -r . -ll"
 
   # --- Test markers ---
   INTEGRATION_MARKERS: "-m integration"          # pytest markers for integration tests
@@ -54,3 +43,11 @@ plan-and-execute:
   SCAN_MODE: "docs"                              # "docs" or "full"
   CONCEPT_MODE: "ask"                            # "ask" or "skip"
   DOC_TASK_MODE: "auto"                          # "auto" or "skip"
+
+  # --- New plug points (FR-1 through FR-7) ---
+  STATE_FILE: ".plan-and-execute.state.json"     # FR-1: phase guard state file (relative to CONTEXT_DIR)
+  PLAN_ANALYSER: "general-purpose"               # FR-2: subagent type for Phase 3 critic; "none" = inline fallback
+  REVIEW_PREAMBLE: ".claude/shared/review-preamble.md"  # FR-3: pre-review posture file; omit to disable
+  PROMOTION_THRESHOLD: 3                         # FR-6: min occurrences to recommend promotion
+  SEVERITY_OVERRIDE_PROMOTION: ["critical"]      # FR-6: severities that recommend promote at 1 occurrence
+  PROMOTION_GATE_MODE: "interactive"             # FR-6: "interactive" (default) | "headless" (CI/Codex/parent-skill)

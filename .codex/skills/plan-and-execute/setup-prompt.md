@@ -17,7 +17,7 @@ Scan the project root silently (no user interaction) and build a detection repor
 
 | Signal | Detection method | What it fills |
 |--------|-----------------|---------------|
-| **Package manager** | `uv.lock` → uv; `poetry.lock` → poetry; `Pipfile` → pipenv; `requirements.txt` → pip | Command prefixes for `TEST_CMD`, `LINT_CMD`, `SECURITY_CMD` |
+| **Package manager** | Verify `uv.lock` or `pyproject.toml` exists (uv is the only supported package manager) | Command prefix `uv run` for `TEST_CMD`, `LINT_CMD`, `SECURITY_CMD` |
 | **Test runner** | `pytest.ini`, `pyproject.toml` `[tool.pytest.ini_options]`, `setup.cfg` `[tool:pytest]` → pytest; `manage.py` → django test | `TEST_CMD` value |
 | **Linter** | `ruff.toml`, `pyproject.toml` `[tool.ruff]` → ruff; `.flake8` → flake8; `.pylintrc` → pylint | `LINT_CMD` value |
 | **Security scanner** | `bandit` in pyproject.toml deps or `.bandit` → bandit; `semgrep` in deps → semgrep | `SECURITY_CMD` value |
@@ -27,7 +27,7 @@ Scan the project root silently (no user interaction) and build a detection repor
 
 **Detection priority for linters:** ruff > flake8 > pylint (if multiple found, use the first match).
 
-**Detection priority for package managers:** uv > poetry > pipenv > pip (if multiple lock files found, use the first match).
+**Package manager:** `uv` is required. All generated commands use `uv run` as the prefix. If `uv.lock` is not found, warn the user and proceed with `uv` defaults.
 
 Present a brief detection summary to the user before proceeding:
 ```

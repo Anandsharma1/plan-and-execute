@@ -17,7 +17,7 @@ Scan the project root silently (no user interaction) and build a detection repor
 
 | Signal | Detection method | What it fills |
 |--------|-----------------|---------------|
-| **Package manager** | `uv.lock` → uv; `poetry.lock` → poetry; `Pipfile` → pipenv; `requirements.txt` → pip | Command prefixes for `TEST_CMD`, `LINT_CMD`, `SECURITY_CMD` |
+| **Package manager** | Verify `uv.lock` or `pyproject.toml` exists (uv is the only supported package manager) | Command prefix `uv run` for `TEST_CMD`, `LINT_CMD`, `SECURITY_CMD` |
 | **Test runner** | `pytest.ini`, `pyproject.toml` `[tool.pytest.ini_options]`, `setup.cfg` `[tool:pytest]` → pytest; `manage.py` → django test | `TEST_CMD` value |
 | **Linter** | `ruff.toml`, `pyproject.toml` `[tool.ruff]` → ruff; `.flake8` → flake8; `.pylintrc` → pylint | `LINT_CMD` value |
 | **Security scanner** | `bandit` in pyproject.toml deps or `.bandit` → bandit; `semgrep` in deps → semgrep | `SECURITY_CMD` value |
@@ -27,7 +27,7 @@ Scan the project root silently (no user interaction) and build a detection repor
 
 **Detection priority for linters:** ruff > flake8 > pylint (if multiple found, use the first match).
 
-**Detection priority for package managers:** uv > poetry > pipenv > pip (if multiple lock files found, use the first match).
+**Package manager:** `uv` is required. All generated commands use `uv run` as the prefix. If `uv.lock` is not found, warn the user and proceed with `uv` defaults.
 
 Present a brief detection summary to the user before proceeding:
 ```
@@ -79,7 +79,20 @@ Generate the following files using templates from `./templates/`. Never overwrit
 | `docs/env-config-policy.md` | `./templates/env-config-policy-template.md` | Config framework name in rule 4, .env pattern note in rule 3 |
 | `.claude/agents/domain-reviewer.md` | `./templates/domain-reviewer-template.md` | Domain name in header and description (always generated) |
 | `review-learnings.md` | `./templates/review-learnings-template.md` | Unchanged (boilerplate) |
+| `.claude/shared/review-preamble.md` | `./templates/review-preamble-template.md` | Copied as-is; leave "Project-specific escape classes" section blank for manual fill. If `review-learnings.md` already exists with AD-N entries, offer to seed the section from the top entries. |
 | `logging_config.py` | `./templates/logging_config_template.py` | Preset values substituted (only if logging preset chosen) |
+
+After generating the above files, offer two additional setup steps:
+
+**Agent Dispatch Discipline (FR-4):**
+> "Append Agent Dispatch Discipline rules to your CLAUDE.md? These are generic incident-derived rules for all Claude Code projects using subagents. [Y/n]"
+>
+> If Y: Read `./templates/claude-md-agent-dispatch-discipline.md` and append its content to the project's `CLAUDE.md` (create if absent). The content is wrapped in `<!-- BEGIN plan-and-execute:agent-dispatch-discipline -->` / `<!-- END ... -->` sentinel markers. On re-install, detect the sentinels and update the bounded block only — never touch content outside the markers.
+
+**Shared settings hooks (FR-7):**
+> "Install code-quality hooks in shared `.claude/settings.json` so they travel with the repo? [Y/n]"
+>
+> If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files. If yes, offer to move them to `settings.json`. Generate the appropriate hooks for the detected linter/formatter (ruff/prettier/eslint etc.) in `settings.json`.
 
 Sections that require domain expertise retain their `<!-- CUSTOMIZE -->` comments or are marked with `TODO:` so the user knows what still needs manual attention.
 
@@ -92,14 +105,19 @@ Print a completion table:
 ```
 Setup complete. Generated files:
 
-| File                              | Status  | Action needed                    |
-|-----------------------------------|---------|----------------------------------|
-| .claude/project-config.yaml       | Created | Review detected commands         |
-| docs/review-standards.md          | Created | Customize sections 2 and 5       |
-| docs/env-config-policy.md         | Created | Review rules 3-4 for your stack  |
-| .claude/agents/domain-reviewer.md | Created | Add domain-specific review rules |
-| review-learnings.md               | Created | No action needed                 |
-| logging_config.py                 | Created | Import in your app entrypoint    |
+| File                                    | Status  | Action needed                                     |
+|-----------------------------------------|---------|---------------------------------------------------|
+| .claude/project-config.yaml             | Created | Review detected commands                          |
+| docs/review-standards.md               | Created | Customize sections 2 and 5                        |
+| docs/env-config-policy.md              | Created | Review rules 3-4 for your stack                   |
+| .claude/agents/domain-reviewer.md      | Created | Add domain-specific review rules                  |
+| review-learnings.md                    | Created | No action needed                                  |
+| .claude/shared/review-preamble.md      | Created | Seed "Project-specific escape classes" section    |
+| CLAUDE.md (Agent Dispatch Discipline)  | Appended | Review sentinel block; no action usually needed  |
+| .claude/settings.json (quality hooks)  | Updated | Verify hook commands match your stack             |
+| logging_config.py                      | Created | Import in your app entrypoint                     |
+
+Files that were skipped (already existed) are listed as "SKIP (exists)" with no action needed.
 
 Continuing with plan-and-execute Phase 0...
 ```

@@ -59,6 +59,11 @@ Dispatch a subagent to perform the review:
 Task tool (subagent_type: feature-dev:code-reviewer):
   description: "Domain code review"
   prompt: |
+    Before doing anything else, read `${REVIEW_PREAMBLE}` and follow every rule in it.
+    The checklist below is additive, not a replacement.
+    (If REVIEW_PREAMBLE is not set or the file does not exist, read `${REVIEW_STANDARDS}` directly
+    and log a warning: "REVIEW_PREAMBLE missing — falling back to REVIEW_STANDARDS".)
+
     You are reviewing code changes against project-specific standards.
 
     ## Scope

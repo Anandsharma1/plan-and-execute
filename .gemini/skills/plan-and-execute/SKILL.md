@@ -7,7 +7,7 @@ description: Use when starting a multi-step feature, bugfix, or refactor that ne
 
 Unified lifecycle skill: persistent context management + concept exploration + formal plan generation + task breakdown + validated execution. Seven phases with clear handoffs, conflict detection, and no duplicate tracking.
 
-**Language focus:** Python (pytest, ruff, bandit). Adaptable to other stacks via parameter overrides.
+**Language focus:** Python (uv, pytest, ruff, bandit). All commands assume `uv` as the package manager.
 
 ## Dependencies
 
@@ -79,9 +79,9 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | REVIEW_STANDARDS | `${PROJECT_ROOT}/docs/review-standards.md` | Module review checklist. Create from `./templates/review-standards-template.md` if missing. |
 | ENV_CONFIG_POLICY | `${PROJECT_ROOT}/docs/env-config-policy.md` | Environment/config policy. Create from `./templates/env-config-policy-template.md` if missing. |
 | DOMAIN_REVIEWER | `domain-reviewer` | Agent name for domain-specific review in Phase 6. Disable only by setting `DOMAIN_REVIEWER=none`. |
-| TEST_CMD | `python -m pytest` | Base test command (run from `${PROJECT_ROOT}`). Override for your runner: `uv run pytest`, `poetry run pytest`, etc. |
-| LINT_CMD | `ruff check ${PROJECT_ROOT}/` | Linter command. Set to empty string to skip. Override for your linter: `flake8`, `pylint`, etc. |
-| SECURITY_CMD | `bandit -r ${PROJECT_ROOT}/ -ll` | Security scanner command. Set to empty string to skip. |
+| TEST_CMD | `uv run pytest` | Base test command (run from `${PROJECT_ROOT}`). |
+| LINT_CMD | `uv run ruff check ${PROJECT_ROOT}/` | Linter command. Set to empty string to skip. |
+| SECURITY_CMD | `uv run bandit -r ${PROJECT_ROOT}/ -ll` | Security scanner command. Set to empty string to skip. |
 | INTEGRATION_MARKERS | `-m integration` | Markers for integration test run |
 | CONSTITUTION | `${PROJECT_ROOT}/.specify/memory/constitution.md` | Project constitution path (if exists) |
 | SCAN_MODE | `docs` | Phase 2 research mode: `docs` = use existing documentation as navigation guide; `full` = scan codebase directly, treat docs as untrustworthy or absent |

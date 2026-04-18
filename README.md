@@ -95,28 +95,94 @@ cp -r plan-and-execute/.agents/skills/domain-code-review/ <your-platform-skill-d
 
 ---
 
-## Project Setup
+## How It Works: Generic Layer + Project Layer
 
-On first invocation, plan-and-execute detects that setup hasn't been completed and offers to run it automatically. Setup auto-detects your package manager, test runner, linter, and security scanner from the codebase, asks 2 questions (domain name, logging preset), and generates all required config files. It never overwrites existing files.
+plan-and-execute ships a **generic orchestration harness** that works out of the box. What makes reviews meaningful for your specific codebase is the **project layer** — a set of files you customize once and reuse across every feature.
 
-**Generated files:**
+```
+Generic layer (ships with P&E, never edit)        Project layer (you own, fill in once)
+─────────────────────────────────────────         ────────────────────────────────────
+SKILL.md          — lifecycle orchestrator         docs/review-standards.md
+HELP.md           — reference documentation         └─ Section 2: domain rules
+hooks/phase_guard.sh — phase enforcement            └─ Section 5: invariants
+templates/        — starter files for setup        .claude/agents/domain-reviewer.md
+                                                    └─ domain-specific review criteria
+                                                   .claude/shared/review-preamble.md
+                                                    └─ top escape classes (≤20 lines)
+                                                   .claude/project-config.yaml
+                                                    └─ commands, thresholds, modes
+                                                   CLAUDE.md (Agent Dispatch Discipline)
+                                                    └─ incident-derived agent safety rules
+```
 
-| File | Purpose |
-|------|---------|
-| `.claude/project-config.yaml` | Parameter defaults (test/lint/security commands, logging policy) |
-| `docs/review-standards.md` | Review criteria for two-stage review -- customize sections 2 and 5 for your domain |
-| `docs/env-config-policy.md` | Environment and configuration rules -- review for your stack |
-| `.claude/agents/domain-reviewer.md` | Domain-specific reviewer agent (default-on) -- fill in domain review criteria |
-| `logging_config.py` | Python logging configuration (if logging preset chosen) |
+The generic layer orchestrates. The project layer tells it what good looks like for your domain.
 
-To re-run setup later, delete `.claude/.plan-and-execute-setup.done` and invoke the skill again.
-To disable the domain reviewer manually, set `DOMAIN_REVIEWER: "none"` in `.claude/project-config.yaml`.
+---
 
-**Alternative:** Use the shell-based installer for non-interactive environments:
+## Getting Started: Three Steps
+
+### Step 1 — Install
+
+```bash
+./install.sh /path/to/your/project
+```
+
+Or on first invocation of `/plan-and-execute`, it offers to run setup automatically.
+
+This generates the project-layer files from templates (never overwrites existing files):
+
+| Generated file | What it does |
+|---|---|
+| `.claude/project-config.yaml` | Commands, thresholds, plug points — the harness configuration |
+| `docs/review-standards.md` | Review rule library — fill in domain rules and invariants |
+| `docs/env-config-policy.md` | Config/env boundary rules |
+| `.claude/agents/domain-reviewer.md` | Domain reviewer agent — default-on during Phase 5/6 |
+| `.claude/shared/review-preamble.md` | Short reviewer posture file — points to standards, inject escape classes |
+| `CLAUDE.md` (appended) | Agent Dispatch Discipline block — incident-derived subagent safety rules |
+| `logging_config.py` | Logging setup (if preset chosen) |
+
+### Step 2 — Configure the project layer
+
+The generated files have `<!-- CUSTOMIZE -->` markers where you add project-specific content. Instead of editing them manually, run the init skill:
+
+```
+/plan-and-execute-init
+```
+
+This walks you through each file interactively, asks about your domain and critical failure modes, and fills in the placeholder sections. It never overwrites content you've already written. Typical runtime: 5–10 minutes.
+
+**What it asks:**
+- What does your project do? (1–2 sentences)
+- What are the 3–5 most expensive bugs in your codebase? (data loss, wrong outputs, security)
+
+**What it fills in:**
+- `review-standards.md` — layer mapping, domain-specific rules, invariants
+- `domain-reviewer.md` — project name, domain review criteria
+- `review-preamble.md` — top escape classes (brief pointers, not full rules)
+- `project-config.yaml` — promotion thresholds, gate modes
+
+To re-run a single file: `/plan-and-execute-init --file review-standards.md`
+
+### Step 3 — Use
+
+```
+/plan-and-execute "Add user authentication"
+```
+
+---
+
+## Project Setup (Manual / Non-interactive)
+
+If you prefer manual setup or are configuring a non-interactive environment:
 
 ```bash
 ./install.sh /path/to/project
 ```
+
+Then edit the generated files directly. Each has `<!-- CUSTOMIZE -->` markers showing exactly what needs project-specific content. See `HELP.md` for parameter reference.
+
+To re-run setup later, delete `.claude/.plan-and-execute-setup.done` and invoke the skill again.
+To disable the domain reviewer, set `DOMAIN_REVIEWER: "none"` in `.claude/project-config.yaml`.
 
 ---
 
@@ -154,14 +220,22 @@ The description is passed directly into the Goal field of `task_plan.md`. Parame
 
 ### Standalone Domain Review
 
-Review code against your project's standards without running the full lifecycle:
-
 ```
 /domain-code-review                           # Review working tree changes
 /domain-code-review abc123..def456            # Review commit range
 ```
 
-This is a separate skill (`domain-code-review/`) that ships alongside plan-and-execute. It runs the same project-specific review used during Phase 5/6, but is independently invocable without the full lifecycle.
+Uses the same project-specific standards as Phase 5/6 review, without the full lifecycle.
+
+### Project Layer Init
+
+```
+/plan-and-execute-init                        # Configure all project-specific files
+/plan-and-execute-init --file review-standards.md  # Re-configure one file
+/plan-and-execute-init --re-run               # Re-run all stages including already-filled sections
+```
+
+Guides you through filling in the project layer after install. See Step 2 above.
 
 ---
 

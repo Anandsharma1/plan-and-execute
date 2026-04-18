@@ -8,7 +8,7 @@ quality analysis), atomic task breakdown, and RALPH-validated execution into a s
 7-phase workflow. Planning files survive context compaction and session restarts. Every
 phase has explicit entry/exit criteria and tracked state.
 
-**Language focus:** Python (pytest, ruff, bandit). Adaptable to other stacks via parameter overrides.
+**Language focus:** Python (uv, pytest, ruff, bandit). All commands assume `uv` as the package manager.
 
 ---
 
@@ -90,15 +90,21 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `REVIEW_STANDARDS` | `docs/review-standards.md` | Review checklist path | `docs/review-standards.md` |
 | `ENV_CONFIG_POLICY` | `docs/env-config-policy.md` | Environment/config policy | `docs/env-config-policy.md` |
 | `DOMAIN_REVIEWER` | `domain-reviewer` | Domain reviewer agent name (set `none` to disable) | `domain-reviewer` |
-| `TEST_CMD` | `python -m pytest` | Base test command | `uv run pytest` |
-| `LINT_CMD` | `ruff check .` | Linter command (empty to skip) | `flake8 .` |
-| `SECURITY_CMD` | `bandit -r . -ll` | Security scanner (empty to skip) | `bandit -r src/ -ll` |
+| `TEST_CMD` | `uv run pytest` | Base test command | `uv run pytest app/auth/test/` |
+| `LINT_CMD` | `uv run ruff check .` | Linter command (empty to skip) | `uv run ruff check src/` |
+| `SECURITY_CMD` | `uv run bandit -r . -ll` | Security scanner (empty to skip) | `uv run bandit -r src/ -ll` |
 | `INTEGRATION_MARKERS` | `-m integration` | Test markers for integration run | `-m integration` |
 | `CONSTITUTION` | `.specify/memory/constitution.md` | Project constitution path | `.specify/memory/constitution.md` |
 | `SCAN_MODE` | `docs` | Phase 2 research mode | `SCAN_MODE=full` |
 | `CONCEPT_MODE` | `ask` | Phase 1 behaviour | `CONCEPT_MODE=skip` |
 | `DOC_TASK_MODE` | `auto` | Phase 4 auto documentation task | `DOC_TASK_MODE=skip` |
 | `logging` | (none) | Nested config block for project logging policy | See below |
+| `STATE_FILE` | `.plan-and-execute.state.json` | Phase guard state file (relative to CONTEXT_DIR) | |
+| `PLAN_ANALYSER` | `general-purpose` | Subagent type for Phase 3 independent plan critique; `"none"` = inline fallback | `PLAN_ANALYSER=none` |
+| `REVIEW_PREAMBLE` | `.claude/shared/review-preamble.md` | Reviewer posture file injected at start of every review dispatch | |
+| `PROMOTION_THRESHOLD` | `3` | Min occurrences for Phase 6 promote recommendation | `PROMOTION_THRESHOLD=2` |
+| `SEVERITY_OVERRIDE_PROMOTION` | `["critical"]` | Severities that recommend promotion at 1 occurrence | |
+| `PROMOTION_GATE_MODE` | `interactive` | Phase 6 gate mode. `interactive` = blocks until user decides each entry. `headless` = emits `promotion-bundle.md`, sets status to `needs-policy-decision`, continues without blocking. | `PROMOTION_GATE_MODE=headless` |
 
 Parameters not provided at invocation use their defaults. Use `project-config.yaml` to set project-wide defaults.
 
@@ -147,17 +153,65 @@ plan-and-execute:
 
 ---
 
+## settings.json vs settings.local.json
+
+- `.claude/settings.json` — **committed, shared.** Quality hooks (format/lint/type-check on Edit/Write) that should apply to every developer belong here. The phase_guard.sh Stop hook is registered here by `install.sh`.
+- `.claude/settings.local.json` — **per-user, uncommitted** (add to `.gitignore`). Per-user permission overrides and experimental hooks belong here.
+
+**Common mis-placement:** If your ruff/prettier/py_compile hooks are in `settings.local.json`, they don't travel with the repo — teammates and CI won't get them. Run `install.sh` with the shared-settings option to migrate them, or move them manually.
+
+---
+
+## Three Review-R Content Contract
+
+Three files shape reviewer behavior. Each has exactly one job:
+
+| File | Role | Size constraint |
+|------|------|----------------|
+| `review-standards.md` | Durable rule library — the authoritative escape-class catalog for this project | No limit (it's the canonical reference) |
+| `review-learnings.md` | Transient session ledger — AD/UG entries accumulated during a feature run; promoted to review-standards.md via the Phase 6 gate | Grows during a run; pruned after promotion |
+| `review-preamble.md` | ≤80-line reviewer-action pointer — posture file injected at the start of every reviewer dispatch | Hard cap: 80 lines. Never a rules catalog. |
+
+**The preamble points to the standards; it does not summarize them.** If the preamble starts growing past 80 lines, content is going in the wrong place — move it to review-standards.md instead.
+
+---
+
+## Domain Code Review: Skill vs Agent Invocation
+
+Two surfaces, same underlying rules:
+
+| Surface | How it works | When to use |
+|---------|-------------|-------------|
+| `/domain-code-review` skill | User-invokable slash command — dispatches a fresh reviewer subagent against working tree, SHA range, or file list | Standalone review, or when you want a standards check without the full P&E lifecycle |
+| `${DOMAIN_REVIEWER}` agent (default: `domain-reviewer`) | Named agent file in `.claude/agents/`; dispatched internally by plan-and-execute during Phase 5/6 | Automated review gates in the P&E execution loop |
+
+Both read the same `review-standards.md`, `env-config-policy.md`, and `review-preamble.md`. The difference is the dispatch surface, not the rules.
+
+---
+
+## Known Overlapping Plugins
+
+| Plugin / skill | Relationship | Guidance |
+|---|---|---|
+| `superpowers:writing-plans` + `superpowers:executing-plans` | **Do NOT combine with plan-and-execute.** P&E covers the same workflow with more phases, review gates, and state tracking. Invoking both creates two parallel planning surfaces and drifts context. | Use one or the other; default to plan-and-execute for multi-session work. |
+| `superpowers:receiving-code-review` | **Complementary, not overlapping.** Targets the implementer *receiving* review (how to respond to feedback). plan-and-execute's preamble targets the reviewer *doing* review. | Use both: preamble makes reviews adversarial; receiving-code-review makes responses disciplined. |
+| `superpowers:verification-before-completion` | **Complementary.** Prompt-side discipline reinforcing the FR-1 harness-side Stop hook. The hook enforces phase completion mechanically; verification-before-completion reinforces it at the agent reasoning level. | Both can be active; they address the same failure mode from different layers. |
+| `claude-md-management:claude-md-improver` | **Must respect sentinel markers.** `claude-md-improver` audits and rewrites CLAUDE.md over time. It MUST NOT rewrite or delete content inside the `<!-- BEGIN plan-and-execute:agent-dispatch-discipline -->` / `<!-- END ... -->` sentinel block. Outside that block, it can audit and improve freely. | When running `claude-md-improver`, confirm it leaves the sentinel block intact. |
+| `secrets-guard` (marketplace skill) | **Preferred over internal credential scanning.** P&E does not ship its own credential scanner — use `secrets-guard` + gitleaks for this. See the Non-goals section in the spec for rationale. | Install `secrets-guard` separately if credential scanning is needed. |
+
+---
+
 ## Phase Overview
 
 | Phase | Name | What happens |
 |-------|------|--------------|
-| 0 | Conflict Check + Initialize | Detect ralph-loop / prior sessions, resolve config, create tracking files |
+| 0 | Conflict Check + Initialize | Detect ralph-loop / prior sessions, resolve config, create tracking files, write initial state file |
 | 1 | Concept & Design | Ask user: brainstorming, speckit, both, or skip -- then execute chosen path |
 | 2 | Research & Discovery | Codebase exploration, findings written to disk every 2 actions |
-| 3 | Plan Generation & Analysis | Inline plan + 7-dimension analysis + user approval gate |
+| 3 | Plan Generation & Analysis | Plan + fresh-subagent critic dispatch (PLAN_ANALYSER) + user approval gate |
 | 4 | Task Breakdown | Atomic tasks appended to approved plan.md |
 | 5 | Execution | Protocol re-read, SDD dispatch per topology, batch review gates, RALPH finalization, Phase 5->6 hard gate |
-| 6 | Finalization | Security check, config check, domain review, review-learnings consolidation, doc gates |
+| 6 | Finalization | Security check, config check, domain review, promotion gate, doc gates, state file set to complete |
 
 ---
 
@@ -204,7 +258,7 @@ On first invocation, plan-and-execute checks for `.claude/.plan-and-execute-setu
 
 ### What it does
 
-1. **Auto-detects** your package manager (uv/poetry/pip), test runner, linter, security scanner, project structure, config framework, and .env patterns from the codebase
+1. **Auto-detects** your test runner, linter, security scanner, project structure, config framework, and .env patterns from the codebase (assumes `uv` as package manager)
 2. **Asks 2 questions**: domain name and logging preset (backend/cli-tool/skip)
 3. **Generates files**: `project-config.yaml` (with `DOMAIN_REVIEWER: "domain-reviewer"` by default), `review-standards.md`, `env-config-policy.md`, domain reviewer agent, `logging_config.py` (optional)
 4. **Creates marker** `.claude/.plan-and-execute-setup.done` so setup doesn't trigger again
@@ -257,6 +311,8 @@ project standards (logging format, exception handling, import order, type hints)
 every implementer prompt. The implementer-prompt.md template has a Project Standards
 section for this purpose.
 
+**Review preamble is the injection mechanism.** The `review-preamble.md` file (≤80 lines) is injected at the top of every reviewer dispatch. It establishes adversarial posture and points reviewers to `review-standards.md`. Creating the file without updating reviewer prompts is a no-op — the prompts already include the injection instruction, but `install.sh` must scaffold the file first.
+
 **Phase 5 has mandatory gates.** Three enforcement points prevent skipping process:
 1. **Protocol re-read (step 2)**: Before any dispatch, re-read the prompt templates and review standards. This prevents context compaction from dropping process requirements.
 2. **Batch review gate (step 5a)**: After each parallel batch, run lint + `/domain-code-review` on the cumulative diff. This catches cross-task issues that individual self-reviews miss.
@@ -306,6 +362,9 @@ parallel -- it creates a duplicate dispatch loop and confuses tracking.
 
 | Gap | Manual workaround |
 |-----|-------------------|
+| Phase guard Stop hook requires `install.sh` to register | If not registered, manually add `hooks/phase_guard.sh` to `.claude/settings.json` `hooks.Stop` array |
+| MediMigration users: FR-1 state file may conflict with `.harness/runs/<id>/run.json` | Do NOT adopt FR-1 on MediMigration — its `harness_phase_guard.sh` covers the same enforcement against its own state. Keep the P&E state file only on projects without a pre-existing harness layer. |
+| Worktree users: state file is per-worktree | This is correct behavior — each worktree is an independent feature run. The hook reads the state file in `CLAUDE_PROJECT_DIR`, which is the worktree root. |
 | Cross-AI validation (Claude vs GPT-4 etc.) | Run externally and paste findings into `findings.md` |
 | Module-init scaffolding (INVARIANTS.md, reviewer agent) | Create manually from templates in `./templates/` |
 | `doc-lint` / `doc-sync` skills may not be installed | Manually audit broken refs and stale timestamps |

@@ -8,7 +8,7 @@ quality analysis), atomic task breakdown, and RALPH-validated execution into a s
 7-phase workflow. Planning files survive context compaction and session restarts. Every
 phase has explicit entry/exit criteria and tracked state.
 
-**Language focus:** Python (pytest, ruff, bandit). Adaptable to other stacks via parameter overrides.
+**Language focus:** Python (uv, pytest, ruff, bandit). All commands assume `uv` as the package manager.
 
 ---
 
@@ -90,9 +90,9 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `REVIEW_STANDARDS` | `docs/review-standards.md` | Review checklist path | `docs/review-standards.md` |
 | `ENV_CONFIG_POLICY` | `docs/env-config-policy.md` | Environment/config policy | `docs/env-config-policy.md` |
 | `DOMAIN_REVIEWER` | `domain-reviewer` | Domain reviewer agent name (set `none` to disable) | `domain-reviewer` |
-| `TEST_CMD` | `python -m pytest` | Base test command | `uv run pytest` |
-| `LINT_CMD` | `ruff check .` | Linter command (empty to skip) | `flake8 .` |
-| `SECURITY_CMD` | `bandit -r . -ll` | Security scanner (empty to skip) | `bandit -r src/ -ll` |
+| `TEST_CMD` | `uv run pytest` | Base test command | `uv run pytest app/auth/test/` |
+| `LINT_CMD` | `uv run ruff check .` | Linter command (empty to skip) | `uv run ruff check src/` |
+| `SECURITY_CMD` | `uv run bandit -r . -ll` | Security scanner (empty to skip) | `uv run bandit -r src/ -ll` |
 | `INTEGRATION_MARKERS` | `-m integration` | Test markers for integration run | `-m integration` |
 | `CONSTITUTION` | `.specify/memory/constitution.md` | Project constitution path | `.specify/memory/constitution.md` |
 | `SCAN_MODE` | `docs` | Phase 2 research mode | `SCAN_MODE=full` |
@@ -204,7 +204,7 @@ On first invocation, plan-and-execute checks for `.claude/.plan-and-execute-setu
 
 ### What it does
 
-1. **Auto-detects** your package manager (uv/poetry/pip), test runner, linter, security scanner, project structure, config framework, and .env patterns from the codebase
+1. **Auto-detects** your test runner, linter, security scanner, project structure, config framework, and .env patterns from the codebase (assumes `uv` as package manager)
 2. **Asks 2 questions**: domain name and logging preset (backend/cli-tool/skip)
 3. **Generates files**: `project-config.yaml` (with `DOMAIN_REVIEWER: "domain-reviewer"` by default), `review-standards.md`, `env-config-policy.md`, domain reviewer agent, `logging_config.py` (optional)
 4. **Creates marker** `.claude/.plan-and-execute-setup.done` so setup doesn't trigger again
