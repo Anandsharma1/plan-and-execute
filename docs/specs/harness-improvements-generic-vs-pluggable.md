@@ -1,5 +1,7 @@
 # Spec: Harness improvements — generic layer + pluggable project layer
 
+> **SUPERSEDED** — Implemented 2026-04-18. Succeeded by [`v2-thin-orchestrator-bounded-skills.md`](v2-thin-orchestrator-bounded-skills.md). Kept for audit trail only.
+
 **Status:** Implemented (2026-04-18). All FR-1 through FR-7 and §9.1 cleanup items landed on `main`. See git log for commit history.
 **Target:** `Tooling/plan-and-execute` master
 **Source analysis:** Comparison of fin-analyst (thin harness) vs MediMigration (heavy harness), cross-verified via CrossAI (Claude ↔ Codex debate, 2 rounds)

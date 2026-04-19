@@ -17,6 +17,8 @@ You are a governance component. Read `defects.jsonl`, identify entries that have
 - **REVIEW_STANDARDS_FILE** (default: `docs/review-standards.md`): human-facing rule library (receives promoted rules as readable text)
 - **PROMOTION_THRESHOLD** (default: 3): minimum occurrences for a promote recommendation
 - **SEVERITY_OVERRIDE_PROMOTION** (default: `["critical"]`): severities that recommend promotion at 1 occurrence
+- **CONTEXT_DIR** (default: `.claude`): directory where `promotion-bundle.json` is written in headless mode
+- **STATE_FILE** (optional): path to the phase guard state file — read to extract `run_id` for `promotion-bundle.json`. If absent, `run_id` is written as `"unknown"`.
 
 ## Step 1: Build the Defect State
 

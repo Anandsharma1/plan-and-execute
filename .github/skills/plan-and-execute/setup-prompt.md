@@ -78,8 +78,22 @@ Generate the following files using templates from `./templates/`. Never overwrit
 | `docs/review-standards.md` | `./templates/review-standards-template.md` | Layer mapping table from structure detection, domain name in section 2 heading |
 | `docs/env-config-policy.md` | `./templates/env-config-policy-template.md` | Config framework name in rule 4, .env pattern note in rule 3 |
 | `.claude/agents/domain-reviewer.md` | `./templates/domain-reviewer-template.md` | Domain name in header and description (always generated) |
-| `review-learnings.md` | `./templates/review-learnings-template.md` | Unchanged (boilerplate) |
+| `.claude/defects.jsonl` | (generated inline) | Empty file — bootstrap for learning-loop ledger |
+| `.claude/policies.json` | (generated inline) | Seed: `{"version":"1","policies":[],"updated_at":"<ISO-8601>"}` |
+| `.claude/shared/review-preamble.md` | `./templates/review-preamble-template.md` | Copied as-is; leave "Project-specific escape classes" section blank for manual fill. |
 | `logging_config.py` | `./templates/logging_config_template.py` | Preset values substituted (only if logging preset chosen) |
+
+After generating the above files, offer two additional setup steps:
+
+**Agent Dispatch Discipline (FR-4):**
+> "Append Agent Dispatch Discipline rules to your CLAUDE.md? These are generic incident-derived rules for all Claude Code projects using subagents. [Y/n]"
+>
+> If Y: Read `./templates/claude-md-agent-dispatch-discipline.md` and append its content to the project's `CLAUDE.md` (create if absent). The content is wrapped in `<!-- BEGIN plan-and-execute:agent-dispatch-discipline -->` / `<!-- END ... -->` sentinel markers. On re-install, detect the sentinels and update the bounded block only — never touch content outside the markers.
+
+**Shared settings hooks (FR-7):**
+> "Install code-quality hooks in shared `.claude/settings.json` so they travel with the repo? [Y/n]"
+>
+> If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files. If yes, offer to move them to `settings.json`. Generate the appropriate hooks for the detected linter/formatter (ruff/prettier/eslint etc.) in `settings.json`.
 
 Sections that require domain expertise retain their `<!-- CUSTOMIZE -->` comments or are marked with `TODO:` so the user knows what still needs manual attention.
 
@@ -92,14 +106,20 @@ Print a completion table:
 ```
 Setup complete. Generated files:
 
-| File                              | Status  | Action needed                    |
-|-----------------------------------|---------|----------------------------------|
-| .claude/project-config.yaml       | Created | Review detected commands         |
-| docs/review-standards.md          | Created | Customize sections 2 and 5       |
-| docs/env-config-policy.md         | Created | Review rules 3-4 for your stack  |
-| .claude/agents/domain-reviewer.md | Created | Add domain-specific review rules |
-| review-learnings.md               | Created | No action needed                 |
-| logging_config.py                 | Created | Import in your app entrypoint    |
+| File                                    | Status  | Action needed                                     |
+|-----------------------------------------|---------|---------------------------------------------------|
+| .claude/project-config.yaml             | Created | Review detected commands                          |
+| docs/review-standards.md               | Created | Customize sections 2 and 5                        |
+| docs/env-config-policy.md              | Created | Review rules 3-4 for your stack                   |
+| .claude/agents/domain-reviewer.md      | Created | Add domain-specific review rules                  |
+| .claude/defects.jsonl                  | Created | No action needed — learning loop ledger           |
+| .claude/policies.json                  | Created | No action needed — active policy registry         |
+| .claude/shared/review-preamble.md      | Created | Seed "Project-specific escape classes" section    |
+| CLAUDE.md (Agent Dispatch Discipline)  | Appended | Review sentinel block; no action usually needed  |
+| .claude/settings.json (quality hooks)  | Updated | Verify hook commands match your stack             |
+| logging_config.py                      | Created | Import in your app entrypoint                     |
+
+Files that were skipped (already existed) are listed as "SKIP (exists)" with no action needed.
 
 Continuing with plan-and-execute Phase 0...
 ```

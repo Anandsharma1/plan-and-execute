@@ -33,6 +33,13 @@ copy_if_missing "$SCRIPT_DIR/templates/domain-reviewer-template.md" "$TARGET/.cl
 copy_if_missing "$SCRIPT_DIR/templates/project-config-example.yaml" "$TARGET/.claude/project-config.yaml"
 copy_if_missing "$SCRIPT_DIR/templates/review-preamble-template.md" "$TARGET/.claude/shared/review-preamble.md"
 
+# --- Built-in validators (all opt-in via VALIDATORS list in project-config.yaml) ---
+copy_if_missing "$SCRIPT_DIR/validators/wiring-auditor/SKILL.md"       "$TARGET/.claude/validators/wiring-auditor/SKILL.md"
+copy_if_missing "$SCRIPT_DIR/validators/contract-auditor/SKILL.md"     "$TARGET/.claude/validators/contract-auditor/SKILL.md"
+copy_if_missing "$SCRIPT_DIR/validators/failure-path-auditor/SKILL.md" "$TARGET/.claude/validators/failure-path-auditor/SKILL.md"
+copy_if_missing "$SCRIPT_DIR/validators/mutation-site-auditor/SKILL.md" "$TARGET/.claude/validators/mutation-site-auditor/SKILL.md"
+copy_if_missing "$SCRIPT_DIR/validators/evidence-verifier/SKILL.md"    "$TARGET/.claude/validators/evidence-verifier/SKILL.md"
+
 # --- Install phase_guard.sh Stop hook ---
 # Copies the hook script and registers it in .claude/settings.json.
 # If a Stop hook array already exists (e.g. from CrossAI), appends rather than overwrites.

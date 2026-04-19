@@ -59,6 +59,15 @@ Dispatch a subagent to perform the review:
 Task tool (subagent_type: feature-dev:code-reviewer):
   description: "Domain code review"
   prompt: |
+    Before doing anything else, read `${REVIEW_PREAMBLE}` and follow every rule in it.
+    The checklist below is additive, not a replacement.
+    (If REVIEW_PREAMBLE is not set or the file does not exist, read `${REVIEW_STANDARDS}` directly
+    and log a warning: "REVIEW_PREAMBLE missing — falling back to REVIEW_STANDARDS".)
+
+    [DEFECT DIGEST — when invoked via plan-and-execute only]
+    ${REVIEW_CONTEXT_COMPILER_DIGEST}
+    [END DEFECT DIGEST]
+
     You are reviewing code changes against project-specific standards.
 
     ## Scope
@@ -147,9 +156,9 @@ When invoked by plan-and-execute:
 
 plan-and-execute passes additional context:
 - Task requirements (from the plan)
-- `review-learnings.md` (accumulated review patterns from the session)
+- A role-filtered digest from `review-context-compiler` (patterns from `defects.jsonl`, injected above the reviewer prompt), so accumulated defect knowledge reaches the domain reviewer automatically
 
-When invoked standalone, these are not available — the review focuses purely on standards compliance.
+When invoked standalone, the defect digest is not available — the review focuses purely on standards compliance.
 
 ## Relationship to Other Reviewers
 

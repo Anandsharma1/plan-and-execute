@@ -86,7 +86,7 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `PROMOTION_THRESHOLD` | `3` | Min occurrences for Phase 6 promote recommendation | `PROMOTION_THRESHOLD=2` |
 | `SEVERITY_OVERRIDE_PROMOTION` | `["critical"]` | Severities that recommend promotion at 1 occurrence | |
 | `DEFECTS_FILE` | `.claude/defects.jsonl` | Append-only JSONL ledger for RCA records. Committed to git — persists across feature runs. | |
-| `POLICIES_FILE` | `.claude/policies.json` | Active policy registry promoted from defects.jsonl. Read by reviewers as supplement to review-standards.md. | |
+| `POLICIES_FILE` | `.claude/policies.json` | Governance audit log — tracks what was promoted, when, and why. Promoted rules land in `review-standards.md`; not read by reviewer subagents. | |
 | `PROMOTION_GATE_MODE` | `interactive` | Phase 6 gate mode. `interactive` = blocks until user decides each entry. `headless` = emits `promotion-bundle.json`, sets status to `needs-policy-decision`, continues without blocking. | `PROMOTION_GATE_MODE=headless` |
 | `VALIDATORS` | `[]` | Validator skills to run after each task's code quality review gate. Each returns a JSON verdict. Built-ins: `wiring-auditor`, `contract-auditor`, `failure-path-auditor`, `mutation-site-auditor`, `evidence-verifier`. All off by default. Projects add custom validators at `.claude/validators/<name>/SKILL.md`. | `VALIDATORS: [wiring-auditor, evidence-verifier]` |
 
@@ -154,7 +154,7 @@ Four artifacts shape reviewer behavior. Each has exactly one job and one format:
 |----------|--------|------|-----------|
 | `review-standards.md` | Markdown | Durable human-facing rule library — authoritative escape-class catalog | No size limit; this is the canonical reference |
 | `.claude/defects.jsonl` | JSONL | Append-only RCA ledger — one JSON record per line; last record per `id` is authoritative | Grows across runs; entries promoted via Phase 6 gate |
-| `.claude/policies.json` | JSON | Active policy registry — entries promoted from defects.jsonl; read by reviewers as a supplement to review-standards.md | Never delete entries; only append and update |
+| `.claude/policies.json` | JSON | Governance audit log — entries promoted from defects.jsonl; promoted rules are enforced via review-standards.md; not injected into reviewer subagents | Never delete entries; only append and update |
 | `.claude/shared/review-preamble.md` | Markdown | ≤80-line reviewer-action pointer — posture file injected at the start of every reviewer dispatch | Hard cap: 80 lines. Never a rules catalog. |
 
 **Why JSON for the ledger:** `review-context-compiler` filters defects.jsonl by `applies_to` field and sorts by `severity` and `occurrences` — deterministic operations on structured data. `policy-updater` reads occurrence counts and severity to apply threshold rules. Markdown parsing for these operations is fragile; JSON is not.
@@ -172,10 +172,10 @@ plan-and-execute uses a thin orchestrator + bounded specialist skills. This tabl
 | Layer | Who | Responsibility | Must NOT do |
 |-------|-----|---------------|-------------|
 | **Orchestrator** | `SKILL.md` | Phase sequencing, user gates, dependency detection, fallback policy, topology choice, dispatch routing, state transitions | Implement review logic, retrospection, promotion, or validation |
-| **Control skills** | `plan-analyser`, `task-compiler` | Artifact evaluation/generation with explicit input/output contracts | Read orchestrator state, write tracking files |
-| **Compiler-context skills** | `review-context-compiler` | Transform artifacts into bounded, role-filtered context packets for downstream consumers | Make policy decisions, do evaluation |
+| **Control skills** | `plan-analyser` | Artifact evaluation/generation with explicit input/output contracts | Read orchestrator state, write tracking files |
+| **Compiler-context skills** | `review-context-compiler` | Transform `defects.jsonl` into bounded, role-filtered context packets for downstream consumers | Make policy decisions, do evaluation |
 | **Validator skills** | `wiring-auditor`, `contract-auditor`, `failure-path-auditor`, `mutation-site-auditor`, `evidence-verifier` | Own exactly one risk class each; return pass/fail verdict with evidence | Know about other validators, implement multi-risk checks |
-| **Learning-loop skills** | `retrospect-execution`, `policy-updater` | Capture misses and evolve policy; own the review-learnings.md and review-standards.md lifecycle | Dispatch agents, make execution decisions |
+| **Learning-loop skills** | `retrospect-execution`, `policy-updater` | Capture misses and evolve policy; own the `defects.jsonl`, `policies.json`, and `review-standards.md` lifecycle | Dispatch agents, make execution decisions |
 
 **The rule:** When adding new behavior, assign it to a layer first. If it doesn't fit cleanly, the layer boundary is wrong — fix the boundary, don't stuff the behavior into the orchestrator.
 
@@ -342,9 +342,9 @@ section for this purpose.
 3. **Hard gate (step 13)**: Phase 5 cannot be declared complete until all tasks are done, batch review has run, and RALPH finalization has passed. "All tasks implemented" != "Phase 5 complete".
 
 **Phase 6 is mandatory, not optional.** Phase 6 runs domain-code-review, security
-check, review-learnings consolidation, and documentation gates. Completing all tasks
-in Phase 5 does NOT mean the feature is done -- Phase 6 is where project standards
-compliance is verified.
+check, defect retrospection (`retrospect-execution`), policy promotion gate
+(`policy-updater`), and documentation gates. Completing all tasks in Phase 5 does NOT
+mean the feature is done -- Phase 6 is where project standards compliance is verified.
 
 **The plan file is the canonical source.** The approved plan.md drives everything in
 Phases 4-6. If you need to change scope, update the plan (minor tweak) or return to

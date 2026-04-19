@@ -31,6 +31,7 @@ cd "$REPO_ROOT"
 # "full" = user-invokable + argument-hint (Claude Code, Cursor, Codex, Copilot, SkillKit)
 # "minimal" = name + description only (Gemini)
 declare -A TARGETS=(
+  [".claude/skills/plan-and-execute"]="full"
   [".cursor/skills/plan-and-execute"]="full"
   [".codex/skills/plan-and-execute"]="full"
   [".github/skills/plan-and-execute"]="full"

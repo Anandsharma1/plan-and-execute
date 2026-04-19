@@ -18,6 +18,7 @@ Resolve from arguments or ask if `PLAN_FILE` is missing:
 - **FINDINGS_SUMMARY** (optional): path or inline text — the "Technical Decisions" and "Requirements" sections from findings.md only; gives WHY behind architectural choices without exploratory noise
 - **RELEVANT_FILES** (optional): comma-separated list of files the plan touches — read these to verify codebase alignment (Dimension 1). Do NOT explore beyond this list unless a specific plan claim is unverifiable.
 - **RESOLVED_CONFIG** (optional): inline text — PROJECT_ROOT, MODULE_NAME, SCAN_MODE, topology choice, non-default parameters
+- **STATE_FILE** (optional): path to the phase guard state file — read to extract `run_id` for `critic.json`. If absent, `run_id` is written as `"unknown"`.
 - **CRITIC_OUTPUT** (default: `.claude/critic.json`): path to write the machine-readable verdict
 
 ## Analyser Posture

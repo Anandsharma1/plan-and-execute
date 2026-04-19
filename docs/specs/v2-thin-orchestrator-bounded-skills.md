@@ -28,10 +28,10 @@ Without an explicit rule, future additions keep landing in SKILL.md. This matrix
 | Layer | Responsibility | Must NOT do |
 |-------|---------------|-------------|
 | **Orchestrator** (SKILL.md) | Phase sequencing, user approval gates, dependency detection, fallback policy, topology choice, dispatch routing, state transitions | Implement review logic, implement retrospection, implement promotion logic, implement validation |
-| **Control skills** (plan-analyser, task-compiler) | Artifact evaluation and generation with explicit input/output contracts | Know about orchestrator state, write to tracking files |
+| **Control skills** (plan-analyser) | Artifact evaluation and generation with explicit input/output contracts | Know about orchestrator state, write to tracking files |
 | **Validator skills** (wiring-auditor, etc.) | Own exactly one risk class each; pass/fail verdict with evidence | Know about other validators, implement multi-risk checks |
-| **Learning-loop skills** (retrospect-execution, policy-updater) | Capture misses and evolve policy; own the review-learnings.md and review-standards.md lifecycle | Dispatch agents, make execution decisions |
-| **Compiler-context skills** (review-context-compiler) | Transform artifacts into bounded, role-filtered context packets for downstream consumers | Make policy decisions, do evaluation |
+| **Learning-loop skills** (retrospect-execution, policy-updater) | Capture misses and evolve policy; own the `defects.jsonl`, `policies.json`, and `review-standards.md` lifecycle | Dispatch agents, make execution decisions |
+| **Compiler-context skills** (review-context-compiler) | Transform `defects.jsonl` into bounded, role-filtered context packets for downstream consumers | Make policy decisions, do evaluation |
 
 This matrix is the single structural rule. When adding new behavior, assign it to a layer first. If it doesn't fit cleanly, the layer boundary is wrong — fix the boundary, don't stuff the behavior into the orchestrator.
 
@@ -79,22 +79,23 @@ This matrix is the single structural rule. When adding new behavior, assign it t
 
 **What:** Extract the pre-dispatch digest compilation (currently described as 5-step inline prose in Phase 5) into a skill.
 
-**Responsibility:** Given a path to `review-learnings.md` and a reviewer role, produce a bounded, role-filtered, severity-sorted digest capped at 15 entries.
+**Responsibility:** Given a path to `defects.jsonl` and a reviewer role, produce a bounded, role-filtered, severity-sorted digest capped at 15 entries.
 
 **Input contract:**
-- `REVIEW_LEARNINGS_FILE`: path to review-learnings.md
+- `DEFECTS_FILE`: path to `defects.jsonl`
 - `ROLE`: `spec-reviewer` | `code-quality-reviewer` | `domain-reviewer`
 - `CAP`: max entries (default 15)
 
 **Output contract:**
 - A markdown digest block, ready to inject above the reviewer prompt
 - Format: entries sorted by severity (critical first), then recency; promoted entries excluded; role-irrelevant entries excluded
+- Deterministic: JSON filter + sort, no markdown parsing
 
 **Orchestrator change:** Phase 5 dispatch steps replace inline digest prose with `Skill("review-context-compiler", ROLE=..., ...)`. The output is injected at the top of each reviewer prompt.
 
-**Why:** The current inline prose leaves room for the orchestrator to skip, abbreviate, or misapply the digest. A skill with an explicit output contract makes it verifiable.
+**Why:** Using `defects.jsonl` instead of markdown ensures deterministic filter/sort. A skill with an explicit output contract makes injection verifiable.
 
-**Skill location:** `.claude/skills/review-context-compiler/SKILL.md` in P&E repo (seeded into consumer project by install.sh, or invoked from P&E skills directory).
+**Skill location:** `review-context-compiler/SKILL.md` in P&E repo.
 
 ---
 
@@ -102,49 +103,50 @@ This matrix is the single structural rule. When adding new behavior, assign it t
 
 **What:** Extract Phase 6's RCA capture step into a standalone skill.
 
-**Responsibility:** Given evidence of what happened during a task/phase, classify defects into structured RCA records and append them to `review-learnings.md`.
+**Responsibility:** Given evidence of what happened during a task/phase, classify defects into structured RCA records and append them to `defects.jsonl` (JSONL — append-only, never overwrite).
 
 **Input contract:**
 - `TASK_ID`: task being retrospected
 - `REVIEWER_FINDINGS`: the raw findings from spec + code quality + domain reviewers
-- `REVIEW_LEARNINGS_FILE`: path to review-learnings.md (append target)
+- `DEFECTS_FILE`: path to `defects.jsonl` (append target; default: `.claude/defects.jsonl`)
 - `PROMOTION_THRESHOLD`: from project-config.yaml
 
 **Output contract:**
-- Zero or more new AD-N or UG-N entries appended to `review-learnings.md`
-- Each entry has full RCA fields: Symptom, Root-cause, Detection-gap, Prevention, Occurrences, Severity
-- Summary: how many new entries added, how many existing entries incremented
+- Zero or more new AD-N or UG-N JSON records appended to `defects.jsonl`
+- Each record has full RCA fields: symptom, root_cause, detection_gap, prevention, review_instruction, applies_to, severity, occurrences, status
+- Summary to stdout: how many new records appended, how many existing records incremented
 
 **Orchestrator change:** Phase 6 step for "capture misses" becomes `Skill("retrospect-execution", TASK_ID=..., ...)` instead of inline prose.
 
 **Standalone use:** `/retrospect-execution` — run retrospection on a completed task outside the full lifecycle. Useful after ad-hoc fixes or hotfixes.
 
-**Why:** Keeping retrospection inside Phase 6 prose means it gets skipped or abbreviated when the orchestrator is under context pressure. A skill with an explicit append contract is auditable.
+**Why:** Keeping retrospection inside Phase 6 prose means it gets skipped or abbreviated when the orchestrator is under context pressure. A skill with an explicit append contract is auditable. JSONL ensures no line is ever overwritten.
 
 ---
 
 ### FR-12: Extract policy-updater as a skill (replaces inline Phase 6 promotion gate)
 
-**What:** Extract Phase 6's promotion gate logic into a skill that manages the review-learnings.md → review-standards.md lifecycle.
+**What:** Extract Phase 6's promotion gate logic into a skill that manages the `defects.jsonl` → `policies.json` + `review-standards.md` lifecycle.
 
-**Responsibility:** Given the current review-learnings.md, present qualified entries for promotion (or emit a headless bundle), and on user decision, move approved entries into review-standards.md.
+**Responsibility:** Given the current `defects.jsonl`, present qualified entries for promotion (or emit a headless bundle), and on user decision, write approved entries to `policies.json` and `review-standards.md`.
 
 **Input contract:**
-- `REVIEW_LEARNINGS_FILE`: path to review-learnings.md
-- `REVIEW_STANDARDS_FILE`: path to review-standards.md
+- `DEFECTS_FILE`: path to `defects.jsonl`
+- `POLICIES_FILE`: path to `policies.json` (active policy registry; default: `.claude/policies.json`)
+- `REVIEW_STANDARDS_FILE`: path to `review-standards.md`
 - `PROMOTION_THRESHOLD`: min occurrences for recommendation
 - `SEVERITY_OVERRIDE_PROMOTION`: severities that recommend at 1 occurrence
 - `GATE_MODE`: `interactive` | `headless`
 
 **Output contract:**
-- `interactive` mode: presents promotion table, waits for user decisions, writes approved entries to review-standards.md, marks promoted entries in review-learnings.md
-- `headless` mode: writes `promotion-bundle.md` listing qualified entries with recommended actions; does NOT write to review-standards.md; sets `needs-policy-decision` status
+- `interactive` mode: presents promotion table, waits for user decisions, writes approved entries to `policies.json` (full rewrite) and `review-standards.md`, appends promoted-status records to `defects.jsonl`
+- `headless` mode: writes `promotion-bundle.json` listing qualified entries with recommended actions; does NOT write to `policies.json` or `review-standards.md`; sets `needs-policy-decision` status
 
 **Orchestrator change:** Phase 6 promotion gate becomes `Skill("policy-updater", GATE_MODE=${PROMOTION_GATE_MODE}, ...)`.
 
 **Standalone use:** `/policy-updater` — run the promotion gate independently (e.g., at end of sprint after multiple feature runs).
 
-**Why:** Splitting "capture misses" (FR-11) from "promote policy" (FR-12) makes both auditable and independently runnable. The inline Phase 6 gate conflates them.
+**Why:** Splitting "capture misses" (FR-11) from "promote policy" (FR-12) makes both auditable and independently runnable. JSON artifacts make policy decisions machine-readable and cross-session consistent.
 
 ---
 
@@ -214,10 +216,9 @@ output:
 
 ## 4. What This Does NOT Include
 
-- `task-compiler` as a separate skill — Phase 4's task breakdown is already lightweight and user-facing (the user sees and approves the task list). Extracting it would add a skill boundary with no clear benefit for current consumers. Revisit when Phase 4 grows.
+- `task-compiler` as a separate skill — Phase 4's task breakdown is already lightweight and user-facing (the user sees and approves the task list). Extracting it would add a skill boundary with no clear benefit for current consumers. It is **not** a control skill in the responsibility matrix; revisit only when Phase 4 grows substantially.
 - `implement-plan` as a separate skill — Phase 5 execution IS the orchestrator's core loop. Extracting it would just rename SKILL.md's execution section. Not worth it until the orchestrator is thin enough to make the split meaningful.
 - Built-in validators enabled by default — too noisy for projects that haven't configured them. All validators are opt-in via `VALIDATORS` list.
-- JSON artifact format for review-learnings.md — markdown is sufficient. The skills operate on structured markdown (RCA field headers), not JSON. Add machine-readable format only if a consumer requests it.
 
 ---
 
@@ -247,7 +248,7 @@ Steps 1-4 are independent and can be parallelized. Steps 5-6 are sequential. Ste
   review-context-compiler/
     SKILL.md          — pre-dispatch digest compiler
   retrospect-execution/
-    SKILL.md          — RCA capture → review-learnings.md
+    SKILL.md          — RCA capture → defects.jsonl
   policy-updater/
     SKILL.md          — promotion gate → review-standards.md
 

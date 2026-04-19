@@ -76,7 +76,7 @@ Phase 1
 - **Status:** pending
 
 ### Phase 5: Execution
-- [ ] Re-read protocol files (implementer-prompt.md, reviewer prompts, review-standards, review-learnings.md)
+- [ ] Re-read protocol files (implementer-prompt.md, reviewer prompts, review-standards, defects.jsonl via review-context-compiler, policies.json)
 - [ ] Execute plan via topology-dependent model (SDD for A/B, dedicated agents for C)
 - [ ] Include project standards in all subagent prompts (subagents don't inherit CLAUDE.md)
 - [ ] Run batch review gate after each parallel batch (lint + domain-code-review on cumulative diff)

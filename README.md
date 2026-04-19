@@ -10,8 +10,8 @@ A unified lifecycle orchestrator for multi-step development -- research, plan, e
 
 - **7-phase lifecycle** -- Concept, Research, Plan, Tasks, Execute, Finalize -- with clear entry/exit criteria and tracked state across every phase
 - **Two-stage review per task** -- spec compliance review followed by code quality review, both dispatched as fresh adversarial agents
-- **Review learnings feedback loop** -- user-reported gaps and auto-detected patterns accumulate in `review-learnings.md` and feed into subsequent reviews
-- **Persistent context files survive session resets** -- `task_plan.md`, `findings.md`, `progress.md`, and `review-learnings.md` are written to disk, not held in memory
+- **Structured learning loop** -- reviewer findings accumulate in `defects.jsonl` (append-only ledger) and `policies.json` (active policy registry); both feed deterministically into subsequent reviews via role-filtered digests
+- **Persistent context files survive session resets** -- `task_plan.md`, `findings.md`, `progress.md`, `defects.jsonl`, and `policies.json` are written to disk, not held in memory
 - **RALPH-validated execution with convergence loop** -- optional integration with `ralph-loop` for iterative self-correction on convergence-heavy tasks
 - **Topology-aware dispatch** -- Single Agent, Coordinated Sub-Agents, or Agent Team, chosen per plan based on blast radius, workstream count, and context pressure
 - **Cross-platform** -- works with Claude Code, GitHub Copilot, Cursor, and Codex CLI
@@ -243,13 +243,13 @@ Guides you through filling in the project layer after install. See Step 2 above.
 
 | Phase | Name | Goal | Output |
 |-------|------|------|--------|
-| 0 | Initialize | Conflict check, resolve config, create tracking files | `task_plan.md`, `findings.md`, `progress.md`, `review-learnings.md` |
+| 0 | Initialize | Conflict check, resolve config, create tracking files | `task_plan.md`, `findings.md`, `progress.md`, `defects.jsonl`, `policies.json` |
 | 1 | Concept & Design | Explore intent via brainstorming, spec, or both | Design doc and/or `spec.md` (or skip if scope is clear) |
 | 2 | Research | Codebase exploration with 2-action write rule | `findings.md` populated with discoveries, blast radius, open questions |
 | 3 | Plan Generation | Formal plan with 7-dimension critical analysis | Approved plan file in `docs/plans/` |
 | 4 | Task Breakdown | Decompose approved plan into atomic tasks | Tasks appended to the approved plan file |
-| 5 | Execution | Protocol re-read, SDD dispatch per topology, batch review gates, RALPH finalization | Implemented code, commits, `review-learnings.md` updated |
-| 6 | Finalization | Security scan, config check, domain review, review-learnings consolidation, documentation gates | Final summary, branch ready for PR |
+| 5 | Execution | Protocol re-read, SDD dispatch per topology, batch review gates, RALPH finalization | Implemented code, commits, `defects.jsonl` updated |
+| 6 | Finalization | Security scan, config check, domain review, defect retrospection, policy promotion gate, documentation gates | Final summary, branch ready for PR |
 
 ---
 

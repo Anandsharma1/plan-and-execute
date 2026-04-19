@@ -15,6 +15,7 @@ You are a learning-loop component, not a reviewer. Classify what escaped and wha
 - **REVIEWER_FINDINGS**: path to a reviewer report or inline text containing findings from spec reviewer, code quality reviewer, and/or domain reviewer for this task
 - **DEFECTS_FILE** (default: `.claude/defects.jsonl`): append target — one JSON record per line
 - **PROMOTION_THRESHOLD** (default: 3): occurrence count at which to flag as promotion candidate
+- **STATE_FILE** (optional): path to the phase guard state file — read to extract `run_id` for each record. If absent, `run_id` is written as `"unknown"`.
 
 ## Step 1: Read Current State
 

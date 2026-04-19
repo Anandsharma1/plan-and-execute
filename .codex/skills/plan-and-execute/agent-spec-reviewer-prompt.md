@@ -1,4 +1,5 @@
 # Spec Compliance Reviewer Prompt Template (Agent-Level)
+<!-- SIBLING: spec-reviewer-prompt.md is the task-level version of this file (Topology A/B). This file is for Topology C only. -->
 
 **Purpose:** Verify a role-specialized agent implemented everything in its spec -- correct outputs, correct files, correct RALPH criteria. Used for Topology C (Agent Team) where the review unit is an agent's entire scope.
 
@@ -7,6 +8,11 @@ For task-level review (Topology A/B), use `spec-reviewer-prompt.md` instead.
 Dispatch with: `Task tool (subagent_type: general-purpose)`
 
 ```
+Before doing anything else, read `${REVIEW_PREAMBLE}` and follow every rule in it.
+The checklist below is additive, not a replacement.
+(If REVIEW_PREAMBLE is not set or the file does not exist, read `${REVIEW_STANDARDS}` directly
+and log a warning: "REVIEW_PREAMBLE missing — falling back to REVIEW_STANDARDS".)
+
 You are reviewing whether an agent's implementation matches its specification.
 
 ## Agent Spec

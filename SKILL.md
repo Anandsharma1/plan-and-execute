@@ -92,7 +92,7 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | PLAN_ANALYSER | `general-purpose` | Subagent type for Phase 3 independent plan critique. Set to `"none"` to fall back to inline analysis (with a warning logged). |
 | REVIEW_PREAMBLE | `.claude/shared/review-preamble.md` | Reviewer posture file injected at the start of every reviewer dispatch. Omit or leave unset to fall back to `${REVIEW_STANDARDS}` directly. |
 | DEFECTS_FILE | `.claude/defects.jsonl` | Append-only JSONL ledger for RCA records written by `retrospect-execution`. Read by `review-context-compiler` and `policy-updater`. Committed to git — institutional memory across runs. |
-| POLICIES_FILE | `.claude/policies.json` | Active policy registry written by `policy-updater` on promotion decisions. Read by reviewers as a supplement to `review-standards.md`. |
+| POLICIES_FILE | `.claude/policies.json` | Governance audit log — tracks what was promoted, when, and why. Promoted rules are enforced via `review-standards.md` (which `policy-updater` writes into); `policies.json` is not injected into reviewer subagents. |
 | PROMOTION_THRESHOLD | `3` | Minimum occurrence count in `defects.jsonl` for a `policy-updater` promote recommendation in the Phase 6 promotion gate. |
 | SEVERITY_OVERRIDE_PROMOTION | `["critical"]` | Severity levels that trigger a promote recommendation regardless of occurrence count. |
 | PROMOTION_GATE_MODE | `interactive` | Phase 6 promotion gate mode. `interactive` = present table and require user decisions (default for conversational use). `headless` = emit `promotion-bundle.json`, mark run `needs-policy-decision`, continue without blocking. |
@@ -147,7 +147,7 @@ concept & design         planning-with-files          plan generation         ta
 | `findings.md` | Research knowledge base | Phase 2 (Research) |
 | `progress.md` | Chronological session log | All phases |
 | `.claude/defects.jsonl` | Append-only RCA ledger — one JSON record per line (authoritative: last record per id) | Phase 5 (retrospect-execution appends), Phase 6 (policy-updater promotes) |
-| `.claude/policies.json` | Active policy registry promoted from defects.jsonl | Phase 6 (policy-updater writes), reviewers read as supplement to review-standards.md |
+| `.claude/policies.json` | Governance audit log — tracks what was promoted, when, and why | Phase 6 (policy-updater writes). Promoted rules land in `review-standards.md`; policies.json is not read by reviewer subagents. |
 | `.claude/critic.json` | Latest plan critique from plan-analyser (machine-readable verdict) | Phase 3 (plan-analyser writes), orchestrator reads verdict for convergence loop |
 | `docs/plans/*.md` | Formal RALPH implementation plan + tasks | Phase 3 (Plan) + Phase 4 (Tasks) |
 
@@ -443,6 +443,7 @@ For the speckit path (when spec.md doesn't yet exist), run `speckit:specify` (an
        FINDINGS_SUMMARY=<"Technical Decisions" + "Requirements" sections of findings.md only>
        RESOLVED_CONFIG=<PROJECT_ROOT, MODULE_NAME, SCAN_MODE, topology, non-default flags>
        RELEVANT_FILES=<explicit file list from plan's "Files to touch" sections>
+       STATE_FILE=${STATE_FILE}
        DO NOT pass: orchestrator chat history, full findings.md, task_plan.md, progress.md>
    )
    ```
@@ -579,7 +580,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./spec-reviewer-prompt.md` -- how spec compliance review works
    - `./code-quality-reviewer-prompt.md` -- how code quality review works
    - If `${REVIEW_STANDARDS}` exists, read it
-   - If `${POLICIES_FILE}` exists and is non-empty, read it (active policies supplement review-standards.md)
+   - If `${POLICIES_FILE}` exists and is non-empty, read it to verify current policy state (promoted rules are already present in review-standards.md — this read is for orchestrator awareness only, not passed to reviewer subagents)
 
    **Why this step exists:** After context compaction, the orchestrator retains WHAT tasks to do but loses HOW each task should be executed (review gates, prompt structure, dispatch protocol). This re-read prevents the most common failure mode: dispatching implementation-only agents without review stages.
 
@@ -651,10 +652,10 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - If implementer fails a task, dispatch a fix subagent -- don't fix manually (context pollution)
 
    **User Feedback Capture:**
-   If the user identifies a gap mid-task, immediately invoke `Skill("retrospect-execution", TASK_ID=<current task>, REVIEWER_FINDINGS=<user's gap description>, DEFECTS_FILE=${DEFECTS_FILE})`. The skill appends a UG-N JSON record to defects.jsonl. All subsequent reviewer dispatches pick it up via `review-context-compiler`.
+   If the user identifies a gap mid-task, immediately invoke `Skill("retrospect-execution", TASK_ID=<current task>, REVIEWER_FINDINGS=<user's gap description>, DEFECTS_FILE=${DEFECTS_FILE}, STATE_FILE=${STATE_FILE})`. The skill appends a UG-N JSON record to defects.jsonl. All subsequent reviewer dispatches pick it up via `review-context-compiler`.
 
    **Per-task retrospection:**
-   After each task's review cycle completes (spec review + code quality review both passed), invoke `Skill("retrospect-execution", TASK_ID=<id>, REVIEWER_FINDINGS=<all reviewer outputs for this task>, DEFECTS_FILE=${DEFECTS_FILE})`. The skill appends or updates JSON records in defects.jsonl. See `./retrospect-execution/SKILL.md`.
+   After each task's review cycle completes (spec review + code quality review both passed), invoke `Skill("retrospect-execution", TASK_ID=<id>, REVIEWER_FINDINGS=<all reviewer outputs for this task>, DEFECTS_FILE=${DEFECTS_FILE}, STATE_FILE=${STATE_FILE})`. The skill appends or updates JSON records in defects.jsonl. See `./retrospect-execution/SKILL.md`.
 
    **Validator dispatch:**
    If `${VALIDATORS}` is non-empty, after each task's code quality review passes, dispatch each configured validator as a fresh subagent:
@@ -887,9 +888,9 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
 5. **Retrospect and promote (mandatory — do not close Phase 6 without both steps):**
 
-   a. **Cross-feature retrospection:** Invoke `Skill("retrospect-execution", DEFECTS_FILE=${DEFECTS_FILE})` with a summary of any cross-task patterns or reviewer blind spots not already captured per-task during Phase 5. The skill appends JSON records to defects.jsonl. See `./retrospect-execution/SKILL.md`.
+   a. **Cross-feature retrospection:** Invoke `Skill("retrospect-execution", DEFECTS_FILE=${DEFECTS_FILE}, STATE_FILE=${STATE_FILE})` with a summary of any cross-task patterns or reviewer blind spots not already captured per-task during Phase 5. The skill appends JSON records to defects.jsonl. See `./retrospect-execution/SKILL.md`.
 
-   b. **Promotion gate:** Invoke `Skill("policy-updater", GATE_MODE=${PROMOTION_GATE_MODE}, DEFECTS_FILE=${DEFECTS_FILE}, POLICIES_FILE=${POLICIES_FILE}, REVIEW_STANDARDS_FILE=${REVIEW_STANDARDS}, PROMOTION_THRESHOLD=${PROMOTION_THRESHOLD}, SEVERITY_OVERRIDE_PROMOTION=${SEVERITY_OVERRIDE_PROMOTION})`. The skill reads defects.jsonl (JSON parsing — no markdown ambiguity), presents the promotion table, writes to policies.json and review-standards.md on approve, or emits `promotion-bundle.json` in headless mode. See `./policy-updater/SKILL.md`.
+   b. **Promotion gate:** Invoke `Skill("policy-updater", GATE_MODE=${PROMOTION_GATE_MODE}, DEFECTS_FILE=${DEFECTS_FILE}, POLICIES_FILE=${POLICIES_FILE}, REVIEW_STANDARDS_FILE=${REVIEW_STANDARDS}, PROMOTION_THRESHOLD=${PROMOTION_THRESHOLD}, SEVERITY_OVERRIDE_PROMOTION=${SEVERITY_OVERRIDE_PROMOTION}, CONTEXT_DIR=${CONTEXT_DIR}, STATE_FILE=${STATE_FILE})`. The skill reads defects.jsonl (JSON parsing — no markdown ambiguity), presents the promotion table, writes to policies.json and review-standards.md on approve, or emits `promotion-bundle.json` in headless mode. See `./policy-updater/SKILL.md`.
 
    **Do NOT close Phase 6 without running both steps.** Per-task retrospection in Phase 5 captures individual task patterns. This step catches what only the full-feature view reveals.
 

@@ -78,8 +78,9 @@ Generate the following files using templates from `./templates/`. Never overwrit
 | `docs/review-standards.md` | `./templates/review-standards-template.md` | Layer mapping table from structure detection, domain name in section 2 heading |
 | `docs/env-config-policy.md` | `./templates/env-config-policy-template.md` | Config framework name in rule 4, .env pattern note in rule 3 |
 | `.claude/agents/domain-reviewer.md` | `./templates/domain-reviewer-template.md` | Domain name in header and description (always generated) |
-| `review-learnings.md` | `./templates/review-learnings-template.md` | Unchanged (boilerplate) |
-| `.claude/shared/review-preamble.md` | `./templates/review-preamble-template.md` | Copied as-is; leave "Project-specific escape classes" section blank for manual fill. If `review-learnings.md` already exists with AD-N entries, offer to seed the section from the top entries. |
+| `.claude/defects.jsonl` | (generated inline) | Empty file — bootstrap for learning-loop ledger |
+| `.claude/policies.json` | (generated inline) | Seed: `{"version":"1","policies":[],"updated_at":"<ISO-8601>"}` |
+| `.claude/shared/review-preamble.md` | `./templates/review-preamble-template.md` | Copied as-is; leave "Project-specific escape classes" section blank for manual fill. |
 | `logging_config.py` | `./templates/logging_config_template.py` | Preset values substituted (only if logging preset chosen) |
 
 After generating the above files, offer two additional setup steps:
@@ -111,7 +112,8 @@ Setup complete. Generated files:
 | docs/review-standards.md               | Created | Customize sections 2 and 5                        |
 | docs/env-config-policy.md              | Created | Review rules 3-4 for your stack                   |
 | .claude/agents/domain-reviewer.md      | Created | Add domain-specific review rules                  |
-| review-learnings.md                    | Created | No action needed                                  |
+| .claude/defects.jsonl                  | Created | No action needed — learning loop ledger           |
+| .claude/policies.json                  | Created | No action needed — active policy registry         |
 | .claude/shared/review-preamble.md      | Created | Seed "Project-specific escape classes" section    |
 | CLAUDE.md (Agent Dispatch Discipline)  | Appended | Review sentinel block; no action usually needed  |
 | .claude/settings.json (quality hooks)  | Updated | Verify hook commands match your stack             |
