@@ -127,6 +127,45 @@ else:
 os.makedirs(os.path.dirname(settings_path) or ".", exist_ok=True)
 with open(settings_path, "w") as f:
     json.dump(settings, f, indent=2)
+
+# --- Migrate duplicate hooks out of settings.local.json ---
+# If settings.local.json already has the same commands we just registered in shared
+# settings.json, remove them to prevent double-firing.
+shared_cmds = {stop_cmd, guard_cmd, quality_cmd}
+local_path = os.path.join(os.path.dirname(settings_path), "settings.local.json")
+if os.path.exists(local_path):
+    with open(local_path) as f:
+        local = json.load(f)
+    changed = False
+    for hook_type in ("Stop", "PreToolUse", "PostToolUse"):
+        groups = local.get("hooks", {}).get(hook_type, [])
+        new_groups = []
+        for entry in groups:
+            if not isinstance(entry, dict):
+                new_groups.append(entry)
+                continue
+            # Filter inner hooks that match a shared command
+            inner = [h for h in entry.get("hooks", [])
+                     if not (isinstance(h, dict) and h.get("command") in shared_cmds)]
+            # Also filter bare-schema entries (old format)
+            if entry.get("command") in shared_cmds:
+                changed = True
+                continue
+            if len(inner) != len(entry.get("hooks", [])):
+                changed = True
+                if inner:
+                    new_groups.append({**entry, "hooks": inner})
+            else:
+                new_groups.append(entry)
+        if new_groups != groups:
+            changed = True
+            local.setdefault("hooks", {})[hook_type] = new_groups
+    if changed:
+        with open(local_path, "w") as f:
+            json.dump(local, f, indent=2)
+        print(f"  MIGRATED: removed duplicate hooks from {local_path}")
+    else:
+        print(f"  OK: no duplicate hooks found in {local_path}")
 PY
 else
   echo "  WARNING: python3 not found — hooks not registered in settings.json."

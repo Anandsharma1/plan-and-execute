@@ -1,4 +1,8 @@
 {
+  "env": {
+    "CLAUDE_CODE_USE_TOOL_SEARCH_TOOL": "1",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"
+  },
   "permissions": {
     "allow": [
       "Read(**)"
