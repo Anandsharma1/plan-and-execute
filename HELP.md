@@ -2,13 +2,7 @@
 
 ## What It Does
 
-`plan-and-execute` is a unified lifecycle skill for multi-step development work. It chains
-concept exploration, persistent context management, formal plan generation (with inline
-quality analysis), atomic task breakdown, and RALPH-validated execution into a single
-7-phase workflow. Planning files survive context compaction and session restarts. Every
-phase has explicit entry/exit criteria and tracked state.
-
-**Language focus:** Python (uv, pytest, ruff, bandit). All commands assume `uv` as the package manager.
+`plan-and-execute` is a unified lifecycle orchestrator for multi-step development work — concept, research, plan, execute, review, finalize — with persistent context files, two-stage review, and a pluggable project layer. See `README.md` for a full overview and installation instructions.
 
 ---
 
@@ -41,19 +35,6 @@ plan-and-execute is an **orchestrator** -- it invokes other skills/plugins at sp
 
 ---
 
-## When to Use It
-
-| Situation | Use plan-and-execute? |
-|-----------|----------------------|
-| Multi-step feature touching 3+ files | Yes |
-| Work spanning multiple sessions | Yes (mandatory -- context survives compaction) |
-| Refactor with significant blast radius | Yes |
-| Needs formal plan before coding starts | Yes |
-| Quick single-file fix (< 1 hour) | No -- use Claude directly |
-| Pure research / question answering | No |
-| Executing an already-written plan | Consider `speckit:implement` instead |
-
----
 
 ## Invocation
 
@@ -105,6 +86,7 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `PROMOTION_THRESHOLD` | `3` | Min occurrences for Phase 6 promote recommendation | `PROMOTION_THRESHOLD=2` |
 | `SEVERITY_OVERRIDE_PROMOTION` | `["critical"]` | Severities that recommend promotion at 1 occurrence | |
 | `PROMOTION_GATE_MODE` | `interactive` | Phase 6 gate mode. `interactive` = blocks until user decides each entry. `headless` = emits `promotion-bundle.md`, sets status to `needs-policy-decision`, continues without blocking. | `PROMOTION_GATE_MODE=headless` |
+| `VALIDATORS` | `[]` | Validator skills to run after each task's code quality review gate. Built-ins: `wiring-auditor`, `contract-auditor`, `failure-path-auditor`, `mutation-site-auditor`, `evidence-verifier`. All off by default. Projects add custom validators at `.claude/validators/<name>/SKILL.md`. | `VALIDATORS: [wiring-auditor, evidence-verifier]` |
 
 Parameters not provided at invocation use their defaults. Use `project-config.yaml` to set project-wide defaults.
 
@@ -173,6 +155,40 @@ Three files shape reviewer behavior. Each has exactly one job:
 | `review-preamble.md` | ≤80-line reviewer-action pointer — posture file injected at the start of every reviewer dispatch | Hard cap: 80 lines. Never a rules catalog. |
 
 **The preamble points to the standards; it does not summarize them.** If the preamble starts growing past 80 lines, content is going in the wrong place — move it to review-standards.md instead.
+
+---
+
+## Skill Decomposition Model
+
+plan-and-execute uses a thin orchestrator + bounded specialist skills. This table is the structural rule for where new behavior belongs:
+
+| Layer | Who | Responsibility | Must NOT do |
+|-------|-----|---------------|-------------|
+| **Orchestrator** | `SKILL.md` | Phase sequencing, user gates, dependency detection, fallback policy, topology choice, dispatch routing, state transitions | Implement review logic, retrospection, promotion, or validation |
+| **Control skills** | `plan-analyser`, `task-compiler` | Artifact evaluation/generation with explicit input/output contracts | Read orchestrator state, write tracking files |
+| **Compiler-context skills** | `review-context-compiler` | Transform artifacts into bounded, role-filtered context packets for downstream consumers | Make policy decisions, do evaluation |
+| **Validator skills** | `wiring-auditor`, `contract-auditor`, `failure-path-auditor`, `mutation-site-auditor`, `evidence-verifier` | Own exactly one risk class each; return pass/fail verdict with evidence | Know about other validators, implement multi-risk checks |
+| **Learning-loop skills** | `retrospect-execution`, `policy-updater` | Capture misses and evolve policy; own the review-learnings.md and review-standards.md lifecycle | Dispatch agents, make execution decisions |
+
+**The rule:** When adding new behavior, assign it to a layer first. If it doesn't fit cleanly, the layer boundary is wrong — fix the boundary, don't stuff the behavior into the orchestrator.
+
+### Validator extension point
+
+Projects plug in validators via `project-config.yaml`:
+
+```yaml
+plan-and-execute:
+  VALIDATORS: [wiring-auditor, evidence-verifier, my-custom-validator]
+```
+
+Each validator is a skill at `.claude/validators/<name>/SKILL.md` with this contract:
+
+```
+Input:  TASK_ID, OWNED_FILES (list), CONTEXT (task contract text)
+Output: verdict (pass|fail|skip), evidence (specific proof or "no issues found"), gaps (list, empty if pass)
+```
+
+The orchestrator discovers validators from the `VALIDATORS` list, dispatches each as a fresh subagent after the code quality review gate, and injects all verdicts into the task summary.
 
 ---
 

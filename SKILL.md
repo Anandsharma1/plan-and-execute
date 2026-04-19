@@ -7,9 +7,7 @@ argument-hint: "<feature request, bug description, or task description>"
 
 # Plan and Execute
 
-Unified lifecycle skill: persistent context management + concept exploration + formal plan generation + task breakdown + validated execution. Seven phases with clear handoffs, conflict detection, and no duplicate tracking.
-
-**Language focus:** Python (uv, pytest, ruff, bandit). All commands assume `uv` as the package manager.
+Unified lifecycle orchestrator: persistent context management + concept exploration + formal plan generation + task breakdown + validated execution. Seven phases with clear handoffs, conflict detection, and no duplicate tracking. Language-agnostic — configure `TEST_CMD`, `LINT_CMD`, `SECURITY_CMD` in `project-config.yaml` for your stack.
 
 ## Dependencies
 
@@ -168,9 +166,14 @@ concept & design         planning-with-files          plan generation         ta
 | `./agent-spec-reviewer-prompt.md` | Phase 5 (Topology C) | Agent-level spec verification -- outputs, file ownership, RALPH criteria |
 | `./code-quality-reviewer-prompt.md` | Phase 5 (all topologies) | Git SHA-scoped code quality review (SOLID, DRY, YAGNI, CWE security, config sprawl) |
 | `../domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Sibling skill — also invocable independently as `/domain-code-review`. |
+| `./plan-analyser/SKILL.md` | Phase 3 | Independent 7-dimension plan critique — dispatched as fresh subagent. User-invokable standalone as `/plan-analyser`. |
+| `./review-context-compiler/SKILL.md` | Phase 5 (before each reviewer dispatch) | Compiles role-filtered, severity-sorted digest from review-learnings.md for injection into reviewer prompts |
+| `./retrospect-execution/SKILL.md` | Phase 5 (per-task) + Phase 6 | Classifies reviewer findings into AD-N/UG-N RCA entries; appends to review-learnings.md |
+| `./policy-updater/SKILL.md` | Phase 6 (promotion gate) | Presents qualified entries for promotion; handles interactive and headless modes. User-invokable standalone as `/policy-updater`. |
+| `./validators/*/SKILL.md` | Phase 5 (after code quality, opt-in via VALIDATORS) | One validator per risk class — wiring, contracts, failure paths, mutation sites, evidence. Each returns pass/fail/skip verdict. |
 | `./templates/task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
 | `./templates/review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
-| `./templates/plan-analyser-prompt.md` | Phase 3 | Independent plan critique — 7-dimension evaluation dispatched as a fresh subagent |
+| `./templates/plan-analyser-prompt.md` | Authoritative criteria source | 7-dimension criteria referenced by plan-analyser/SKILL.md — do not duplicate |
 | `./templates/review-preamble-template.md` | Phase 0 (setup) | Scaffolded into `.claude/shared/review-preamble.md`; injected at the top of every reviewer dispatch |
 | `./templates/claude-md-agent-dispatch-discipline.md` | Phase 0 (setup) | Scaffolded into project CLAUDE.md between sentinel markers on first-run |
 | `./setup-prompt.md` | Phase 0 (first run only) | Auto-detection + guided setup flow — loaded when `.claude/.plan-and-execute-setup.done` is absent |
@@ -419,30 +422,25 @@ For the speckit path (when spec.md doesn't yet exist), run `speckit:specify` (an
 
    Record the chosen topology and justification in the plan's "Execution Topology" section.
 
-5. **Dispatch the plan analyser as a fresh subagent** (when `PLAN_ANALYSER != "none"`):
+5. **Dispatch the plan analyser** (when `PLAN_ANALYSER != "none"`):
 
-   The 7-dimension criteria live in `./templates/plan-analyser-prompt.md` — that file is the authoritative source. Do not re-state the criteria here.
-
-   Compile the analyser prompt from `./templates/plan-analyser-prompt.md` with structured context injected — not the planner's chat history, but the artifacts the analyser needs to evaluate codebase alignment without re-exploring from scratch:
+   Invoke the `plan-analyser` skill as a fresh subagent. The skill's full contract is in `./plan-analyser/SKILL.md` — that is the authoritative source for criteria and output format.
 
    ```
    Agent(
-     subagent_type="${PLAN_ANALYSER}",  # from project-config.yaml (default: "general-purpose")
+     subagent_type="${PLAN_ANALYSER}",  # default: "general-purpose"
      description="Independent plan analysis",
-     prompt=<compiled from ./templates/plan-analyser-prompt.md with:
-       - PLAN_FILE_PATH: path to the generated plan file
-       - SPEC_FILE_PATH: path to spec.md (if applicable)
-       - FINDINGS_SUMMARY: the "Technical Decisions" and "Requirements" sections of findings.md
-         (not the full file — trim to decisions and constraints relevant to the plan)
-       - RESOLVED_CONFIG: the resolved parameter values (PROJECT_ROOT, MODULE_NAME,
-         SCAN_MODE, topology choice, any non-default flags)
-       - RELEVANT_FILES: explicit list of files/modules the plan touches (from the plan's
-         "Files to touch" across all phases — the analyser reads these to check alignment)
+     prompt=<content of ./plan-analyser/SKILL.md with inputs injected:
+       PLAN_FILE=<path to generated plan file>
+       SPEC_FILE=<path to spec.md if applicable>
+       FINDINGS_SUMMARY=<"Technical Decisions" + "Requirements" sections of findings.md only>
+       RESOLVED_CONFIG=<PROJECT_ROOT, MODULE_NAME, SCAN_MODE, topology, non-default flags>
+       RELEVANT_FILES=<explicit file list from plan's "Files to touch" sections>
        DO NOT pass: orchestrator chat history, full findings.md, task_plan.md, progress.md>
    )
    ```
 
-   **Why this input contract:** The analyser must evaluate "codebase alignment" (Dimension 1) but should not re-explore the whole codebase — that defeats the purpose. The relevant-files list gives it the bounded set of actual code to verify against the plan's assumptions. findings.md summaries give it the WHY behind decisions without the exploratory noise.
+   **Why this input contract:** The analyser must evaluate codebase alignment without re-exploring the whole codebase. The relevant-files list gives it the bounded set of actual code; findings summaries give it the WHY behind decisions without exploratory noise.
 
    **Graceful degradation:** If `PLAN_ANALYSER="none"`, perform the 7-dimension evaluation inline using the criteria in `./templates/plan-analyser-prompt.md` as the checklist. Log to `progress.md`: "PLAN_ANALYSER=none — running inline plan analysis (self-review bias risk)."
 
@@ -638,15 +636,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./code-quality-reviewer-prompt.md` -- git SHA-scoped quality review (includes CWE + config sprawl)
    - `/domain-code-review` skill -- project-specific standards review (review-standards.md, env-config-policy, logging). Invoke after code-quality review passes.
    - If `${REVIEW_PREAMBLE}` file exists, all reviewer dispatch prompts already include the mandatory first-read instruction (it is baked into the template files above). If `REVIEW_PREAMBLE` is unset or missing, reviewers fall back to reading `${REVIEW_STANDARDS}` directly — log a warning to `progress.md`.
-   - If `${CONTEXT_DIR}/review-learnings.md` exists, **compile a digest** (not the full file) before each reviewer dispatch:
-     1. Filter entries by the reviewer's role (`Applies to: spec-reviewer`, `code-quality-reviewer`, or `both`)
-     2. Sort by severity: critical first, then important, then minor
-     3. Within each severity, sort by recency (highest task-ID first — most recent patterns are most relevant)
-     4. Exclude entries in `## Promoted to Review Standards` (already baked into review-standards.md)
-     5. Cap the digest at 15 entries — if more exist, include the highest-severity ones and note the count of omitted entries
-     6. Inline the digest into the reviewer prompt: "Apply the following review patterns captured this session: [digest block]"
-
-   **Why digest not full file:** As FR-5 adds RCA fields and FR-6 accumulates occurrence history, review-learnings.md grows unboundedly. A reviewer drowning in 40-entry history with full RCA prose is worse than one with 10 curated high-signal patterns. The filter-by-role step is the minimum viable signal cut — a spec-reviewer doesn't need config sprawl patterns, a code-quality reviewer doesn't need spec-boundary patterns.
+   - Before each reviewer dispatch, invoke `Skill("review-context-compiler", ROLE=<role>, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)` and inject the returned digest block above the reviewer prompt. If review-learnings.md does not exist or is empty, the skill returns a "no prior patterns" block — inject that too so the reviewer sees the signal is clean, not missing. See `./review-context-compiler/SKILL.md` for the digest compilation contract.
 
    **Rules:**
    - Never dispatch code quality review before spec compliance passes
@@ -654,44 +644,23 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - If implementer fails a task, dispatch a fix subagent -- don't fix manually (context pollution)
 
    **User Feedback Capture:**
-   If the user identifies a gap during execution (e.g., "you missed error handling for X", "this edge case wasn't caught"), immediately:
-   1. Extract the pattern: what was missed, what type of review should have caught it
-   2. Prompt the user for RCA fields if they haven't provided them (Symptom, Root cause, Detection gap, Prevention)
-   3. Append to `${CONTEXT_DIR}/review-learnings.md` under `## User-Reported Gaps`:
-      ```markdown
-      ### [UG-N] <pattern name>
-      - **Source:** User feedback during Task T-X
-      - **What was missed:** <description>
-      - **Symptom:** <what went wrong observably, with file:line citations>
-      - **Root cause:** <the cognitive or process failure — not "be more careful">
-      - **Detection gap:** <which review rule would have caught this>
-      - **Prevention:** <test/check/policy that now guards against regression>
-      - **Review instruction:** <what reviewers should check for>
-      - **Applies to:** spec-reviewer | code-quality-reviewer | both
-      - **Occurrences:** 1
-      - **Severity:** critical | important | minor
-      ```
-   4. All subsequent reviewer dispatches in the current session must load `review-learnings.md`
+   If the user identifies a gap mid-task, immediately invoke `Skill("retrospect-execution", TASK_ID=<current task>, REVIEWER_FINDINGS=<user's gap description>, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)`. The skill classifies it as a UG-N entry and appends it. All subsequent reviewer dispatches pick it up via `review-context-compiler`.
 
-   **Auto-Pattern Detection:**
-   After each spec-reviewer or code-quality-reviewer completes, check:
-   - Has the same category of issue appeared in 2+ different tasks? (e.g., "missing input validation" flagged in T-2 and T-5)
-   - If yes, append to `${CONTEXT_DIR}/review-learnings.md` under `## Auto-Detected Patterns`:
-      ```markdown
-      ### [AD-N] <pattern name>
-      - **Source:** Auto-detected across tasks T-X, T-Y (list ALL task IDs — do not summarise to a count)
-      - **Issue type:** <category>
-      - **Symptom:** <what went wrong observably, with file:line citations>
-      - **Root cause:** <the cognitive or process failure — not "be more careful">
-      - **Detection gap:** <which review rule would have caught this>
-      - **Prevention:** <test/check/policy that now guards against regression>
-      - **Review instruction:** <what reviewers should check for>
-      - **Applies to:** spec-reviewer | code-quality-reviewer | both
-      - **Occurrences:** <count>
-      - **Severity:** critical | important | minor
-      ```
-   - Deduplicate: before adding, check if the pattern already exists in review-learnings.md
-   - When updating an existing entry (same pattern found in another task), increment **Occurrences** and append the new task ID to **Source**
+   **Per-task retrospection:**
+   After each task's review cycle completes (spec review + code quality review both passed), invoke `Skill("retrospect-execution", TASK_ID=<id>, REVIEWER_FINDINGS=<all reviewer outputs for this task>, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)`. The skill classifies findings into AD-N/UG-N entries and appends or increments them. See `./retrospect-execution/SKILL.md` for the classification contract and entry format.
+
+   **Validator dispatch:**
+   If `${VALIDATORS}` is non-empty, after each task's code quality review passes, dispatch each configured validator as a fresh subagent:
+   ```
+   For each validator_name in ${VALIDATORS}:
+     Agent(
+       subagent_type="general-purpose",
+       description="<validator_name> for Task <TASK_ID>",
+       prompt=<content of .claude/validators/<validator_name>/SKILL.md with
+               TASK_ID=<id>, OWNED_FILES=<task's files>, CONTEXT=<task contract text>>
+     )
+   ```
+   Inject all validator verdicts into the task summary. A `fail` verdict from any validator blocks task completion the same as a failed code quality review.
 
    ### Topology B -- Coordinated Sub-Agents (SDD per workstream)
 
@@ -909,54 +878,13 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - If `DOMAIN_REVIEWER=domain-reviewer` but file is missing, flag it in `progress.md` and final summary
    - CRITICAL findings must be fixed before PR; Important findings require acknowledgment
 
-5. **Consolidate review findings across all Phase 5 iterations:**
+5. **Retrospect and promote (mandatory — do not close Phase 6 without both steps):**
 
-   **Timing:** This happens once, here at Phase 6 (feature completion) -- not per-task or per-phase. During Phase 5 execution, reviewer outputs are logged to `progress.md` as they occur. Phase 6 is when you read back across all of them, look for patterns, and act.
+   a. **Cross-feature retrospection:** Invoke `Skill("retrospect-execution", REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)` with a summary of any cross-task patterns or reviewer blind spots not already captured per-task during Phase 5. This handles systematic patterns that only become visible at the feature level. See `./retrospect-execution/SKILL.md`.
 
-   Collect all code-quality and spec-compliance reviewer outputs from every task/agent in Phase 5. Classify each finding by pattern:
+   b. **Promotion gate:** Invoke `Skill("policy-updater", GATE_MODE=${PROMOTION_GATE_MODE}, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md, REVIEW_STANDARDS_FILE=${REVIEW_STANDARDS}, PROMOTION_THRESHOLD=${PROMOTION_THRESHOLD}, SEVERITY_OVERRIDE_PROMOTION=${SEVERITY_OVERRIDE_PROMOTION})`. The skill reads review-learnings.md, presents the promotion table, and handles both interactive and headless modes. In headless mode it writes `promotion-bundle.md` and signals `needs-policy-decision`. See `./policy-updater/SKILL.md`.
 
-   | Pattern | Action |
-   |---------|--------|
-   | **Systematic / structural** -- same issue class appeared in 2+ tasks | Add a new check item to `${REVIEW_STANDARDS}` so future review cycles catch it early |
-   | **Integration assumption** -- agent made an incorrect assumption about how components connect | Update `INVARIANTS.md` with the corrected assumption; update `ARCHITECTURE.md` if the contract changed |
-   | **Reviewer blind spot** -- code-quality reviewer missed a whole class of issue | Amend `./code-quality-reviewer-prompt.md` with the missed check |
-   | **One-off bug** -- isolated to a single task, no pattern | No doc update needed; already fixed in code |
-
-   **Explicit promotion gate (mandatory — do not close Phase 6 without this):**
-
-   1. Read `${CONTEXT_DIR}/review-learnings.md` in full.
-   2. For each AD-N and UG-N entry (excluding `## Promoted` entries), compute occurrence count and severity.
-   3. Apply recommendation rules:
-      - Occurrences >= `${PROMOTION_THRESHOLD}` (default 3) → recommend **promote**
-      - Severity in `${SEVERITY_OVERRIDE_PROMOTION}` (default `["critical"]`) → recommend **promote** regardless of count (this handles the single-task bulk-finding scenario)
-      - Else → recommend **defer**
-   4. Build the promotion table:
-
-      | Tag | Pattern | Occurrences | Severity | Recommendation |
-      |-----|---------|-------------|----------|----------------|
-      | AD-1 | <name> | 3 | critical | promote |
-      | AD-4 | <name> | 2 | important | defer |
-
-   **Branch on `${PROMOTION_GATE_MODE}`:**
-
-   **`interactive` (default):**
-   5a. Present the table to the user. User must explicitly decide for each entry: **promote** | **defer** (with written reason) | **close**. No silent auto-close. Do not proceed until every entry has a decision.
-   6a. For promoted entries: append the pattern to `${REVIEW_STANDARDS}` under the appropriate section; move the entry in `review-learnings.md` to `## Promoted to Review Standards` (audit trail — do not delete):
-       ```markdown
-       ### [UG-N] or [AD-N] <pattern name> — promoted YYYY-MM-DD
-       ```
-
-   **`headless` (CI / parent-skill / Codex):**
-   5b. Write `${CONTEXT_DIR}/promotion-bundle.md` containing: the full promotion table, each entry's full RCA fields, recommended action per entry, and run_id from `${STATE_FILE}`.
-   6b. Update `${STATE_FILE}`: set `status: "needs-policy-decision"` (NOT "complete"). The Stop hook will not block on this status.
-   7b. Emit to stdout: `PROMOTION_PENDING: <N> entries require policy decision. See promotion-bundle.md. Run with PROMOTION_GATE_MODE=interactive to resolve.`
-   8b. Phase 6 continues past this step (documentation gates, final summary) but the run is flagged as incomplete until the bundle is resolved.
-
-   7. After classifying all entries, also check for reviewer blind spots (same issue class missed by the same reviewer type in 2+ tasks) → amend `./code-quality-reviewer-prompt.md` or `./spec-reviewer-prompt.md` as appropriate. This step runs in both modes.
-
-   **Note on backfilling legacy entries:** Existing AD/UG entries without RCA fields (from before FR-5 was introduced) must have those fields filled before promotion. In interactive mode: prompt the user. In headless mode: flag them as `BACKFILL_NEEDED` in promotion-bundle.md and exclude from auto-recommendations.
-
-   This feedback loop strengthens future reviews — the reviewer agents read `${REVIEW_STANDARDS}` and `./code-quality-reviewer-prompt.md` directly, so improvements propagate immediately.
+   **Do NOT close Phase 6 without running both steps.** Per-task retrospection in Phase 5 captures individual task patterns. This step catches what only the full-feature view reveals.
 
 6. **Documentation gates (create-or-update, multi-level):**
 
