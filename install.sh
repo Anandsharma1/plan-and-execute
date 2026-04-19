@@ -78,6 +78,11 @@ if os.path.exists(settings_path):
 else:
     settings = {}
 
+# Seed cross-project Claude env defaults (setdefault — never overwrite user values)
+settings.setdefault("env", {})
+settings["env"].setdefault("CLAUDE_CODE_USE_TOOL_SEARCH_TOOL", "1")
+settings["env"].setdefault("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "400000")
+
 settings.setdefault("hooks", {})
 
 def already_registered(hook_list, command):

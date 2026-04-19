@@ -93,7 +93,12 @@ After generating the above files, offer two additional setup steps:
 **Shared settings hooks (FR-7):**
 > "Install code-quality hooks in shared `.claude/settings.json` so they travel with the repo? [Y/n]"
 >
-> If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files. If yes, offer to move them to `settings.json`. Generate the appropriate hooks for the detected linter/formatter (ruff/prettier/eslint etc.) in `settings.json`.
+> If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files that duplicate the shared hooks; if so, remove duplicates to prevent double-firing. Copy the shipped hook scripts to `.claude/hooks/` and register them in `settings.json`:
+> - `block_sensitive_files.sh` (PreToolUse, `Edit|Write|MultiEdit`) — blocks edits on .env and credential files
+> - `python_post_edit.sh` (PostToolUse, `Edit|Write|MultiEdit`) — ruff + py_compile on every .py edit; JS/TS section is commented in the script for manual opt-in
+> - `phase_guard.sh` (Stop) — blocks session exit when a plan-and-execute run is in Phase 5/6 and not complete
+>
+> The hook scripts activate only for matching file types, so they are safe to install on any project. For non-Python stacks, uncomment the JS/TS section in `python_post_edit.sh` and adapt.
 
 Sections that require domain expertise retain their `<!-- CUSTOMIZE -->` comments or are marked with `TODO:` so the user knows what still needs manual attention.
 
