@@ -40,63 +40,100 @@ copy_if_missing "$SCRIPT_DIR/validators/failure-path-auditor/SKILL.md" "$TARGET/
 copy_if_missing "$SCRIPT_DIR/validators/mutation-site-auditor/SKILL.md" "$TARGET/.claude/validators/mutation-site-auditor/SKILL.md"
 copy_if_missing "$SCRIPT_DIR/validators/evidence-verifier/SKILL.md"    "$TARGET/.claude/validators/evidence-verifier/SKILL.md"
 
-# --- Install phase_guard.sh Stop hook ---
-# Copies the hook script and registers it in .claude/settings.json.
-# If a Stop hook array already exists (e.g. from CrossAI), appends rather than overwrites.
-HOOK_DEST="$TARGET/.claude/hooks/phase_guard.sh"
+# --- Install hooks and register in .claude/settings.json ---
+# Copies hook scripts to .claude/hooks/ and registers them using the correct
+# Claude Code settings schema: {"matcher": "...", "hooks": [{...}]}
+# Appends to existing hook groups rather than overwriting.
+HOOKS_DEST_DIR="$TARGET/.claude/hooks"
 SETTINGS_FILE="$TARGET/.claude/settings.json"
 
-mkdir -p "$(dirname "$HOOK_DEST")"
-if [ ! -f "$HOOK_DEST" ]; then
-  cp "$SCRIPT_DIR/hooks/phase_guard.sh" "$HOOK_DEST"
-  chmod +x "$HOOK_DEST"
-  echo "  CREATED: $HOOK_DEST"
-else
-  echo "  SKIP (exists): $HOOK_DEST"
-fi
+mkdir -p "$HOOKS_DEST_DIR"
 
-# Register the Stop hook in settings.json using Python for safe JSON editing
+install_hook() {
+  local src="$1" dest="$2"
+  if [ ! -f "$dest" ]; then
+    cp "$src" "$dest"
+    chmod +x "$dest"
+    echo "  CREATED: $dest"
+  else
+    echo "  SKIP (exists): $dest"
+  fi
+}
+
+install_hook "$SCRIPT_DIR/hooks/phase_guard.sh"          "$HOOKS_DEST_DIR/phase_guard.sh"
+install_hook "$SCRIPT_DIR/hooks/block_sensitive_files.sh" "$HOOKS_DEST_DIR/block_sensitive_files.sh"
+install_hook "$SCRIPT_DIR/hooks/python_post_edit.sh"      "$HOOKS_DEST_DIR/python_post_edit.sh"
+
+# Register all hooks in settings.json using Python for safe JSON editing.
+# Uses repo-relative command paths so settings.json is portable across machines.
 if command -v python3 >/dev/null 2>&1; then
-  python3 - "$SETTINGS_FILE" "$HOOK_DEST" <<'PY'
+  python3 - "$SETTINGS_FILE" <<'PY'
 import json, os, sys
 
 settings_path = sys.argv[1]
-hook_path = sys.argv[2]
 
-# Load or create settings.json
 if os.path.exists(settings_path):
     with open(settings_path) as f:
         settings = json.load(f)
 else:
     settings = {}
 
-hook_command = hook_path
-hook_entry = {"type": "command", "command": hook_command}
-
-# Ensure hooks.Stop array exists
 settings.setdefault("hooks", {})
+
+def already_registered(hook_list, command):
+    """Check if a command is already in any hook group in the list."""
+    for entry in hook_list:
+        if isinstance(entry, dict):
+            # New schema: {"matcher": "...", "hooks": [{...}]}
+            for h in entry.get("hooks", []):
+                if isinstance(h, dict) and h.get("command") == command:
+                    return True
+            # Old bare schema: {"type": "command", "command": "..."}
+            if entry.get("command") == command:
+                return True
+    return False
+
+def append_hook(hook_list, matcher, command, timeout):
+    entry = {"matcher": matcher, "hooks": [{"type": "command", "command": command, "timeout": timeout}]}
+    hook_list.append(entry)
+
+# --- Stop hook: phase_guard.sh ---
 settings["hooks"].setdefault("Stop", [])
-
-# Check if hook already registered (avoid duplicates)
-stop_hooks = settings["hooks"]["Stop"]
-already_registered = any(
-    (isinstance(h, dict) and h.get("command") == hook_command) or
-    (isinstance(h, str) and h == hook_command)
-    for h in stop_hooks
-)
-
-if not already_registered:
-    stop_hooks.append(hook_entry)
-    os.makedirs(os.path.dirname(settings_path), exist_ok=True)
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-    print(f"  REGISTERED: phase_guard.sh Stop hook in {settings_path}")
+stop_cmd = ".claude/hooks/phase_guard.sh"
+if not already_registered(settings["hooks"]["Stop"], stop_cmd):
+    append_hook(settings["hooks"]["Stop"], "", stop_cmd, 10)
+    print(f"  REGISTERED: phase_guard.sh Stop hook")
 else:
     print(f"  SKIP (already registered): phase_guard.sh Stop hook")
+
+# --- PreToolUse: sensitive-file guard ---
+settings["hooks"].setdefault("PreToolUse", [])
+guard_cmd = ".claude/hooks/block_sensitive_files.sh"
+if not already_registered(settings["hooks"]["PreToolUse"], guard_cmd):
+    append_hook(settings["hooks"]["PreToolUse"], "Edit|Write|MultiEdit", guard_cmd, 5)
+    print(f"  REGISTERED: block_sensitive_files.sh PreToolUse hook")
+else:
+    print(f"  SKIP (already registered): block_sensitive_files.sh PreToolUse hook")
+
+# --- PostToolUse: code-quality (Python) ---
+settings["hooks"].setdefault("PostToolUse", [])
+quality_cmd = ".claude/hooks/python_post_edit.sh"
+if not already_registered(settings["hooks"]["PostToolUse"], quality_cmd):
+    append_hook(settings["hooks"]["PostToolUse"], "Edit|Write|MultiEdit", quality_cmd, 30)
+    print(f"  REGISTERED: python_post_edit.sh PostToolUse hook")
+else:
+    print(f"  SKIP (already registered): python_post_edit.sh PostToolUse hook")
+
+os.makedirs(os.path.dirname(settings_path) or ".", exist_ok=True)
+with open(settings_path, "w") as f:
+    json.dump(settings, f, indent=2)
 PY
 else
-  echo "  WARNING: python3 not found — phase_guard.sh hook not registered in settings.json."
-  echo "           Add it manually: settings.json hooks.Stop array, command: $HOOK_DEST"
+  echo "  WARNING: python3 not found — hooks not registered in settings.json."
+  echo "           Add manually to .claude/settings.json:"
+  echo "             Stop.hooks: [{matcher: \"\", hooks: [{type: command, command: .claude/hooks/phase_guard.sh, timeout: 10}]}]"
+  echo "             PreToolUse.hooks: [{matcher: Edit|Write|MultiEdit, hooks: [{type: command, command: .claude/hooks/block_sensitive_files.sh, timeout: 5}]}]"
+  echo "             PostToolUse.hooks: [{matcher: Edit|Write|MultiEdit, hooks: [{type: command, command: .claude/hooks/python_post_edit.sh, timeout: 30}]}]"
 fi
 
 # --- Interactive logging setup ---

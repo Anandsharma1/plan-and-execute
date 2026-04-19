@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # plan-and-execute phase guard — registered as a Stop hook by install.sh.
-# Blocks session exit when a run is in_progress and has not reached Phase 6.
-# No-op when state file is absent or status is not in_progress.
+# Blocks session exit when a run is in Phase 5/6 and status is not "complete".
+# No-op when state file is absent, status is "complete", or phase < 5.
 set -euo pipefail
 
 STATE_FILE="${CLAUDE_PROJECT_DIR:-.}/.plan-and-execute.state.json"
@@ -17,17 +17,23 @@ except (json.JSONDecodeError, OSError) as e:
     print(f"plan-and-execute phase_guard: could not read state file: {e}", file=sys.stderr)
     sys.exit(0)  # don't block on corrupt state
 
-status   = d.get("status", "")
-phase    = int(d.get("phase", 0))
-slug     = d.get("feature_slug", "<unknown>")
-run_id   = d.get("run_id", slug)
+status = d.get("status", "")
+phase  = int(d.get("phase", 0))
+run_id = d.get("run_id", d.get("feature_slug", "<unknown>"))
 
-# "needs-policy-decision" means headless mode emitted a promotion bundle — don't re-block
-if status == "in_progress" and phase < 6:
+# Only gate execution and closeout phases
+if phase < 5:
+    sys.exit(0)
+
+# status=="complete" is only written at the end of Phase 6 — clear the gate
+if status == "complete":
+    sys.exit(0)
+
+if status == "in_progress":
     print(
         f"BLOCK: plan-and-execute run '{run_id}' is in_progress at phase {phase}. "
-        f"Phase must reach 6 (closeout) before exiting. "
-        f"To bypass for rescue scenarios, set status='failed' in {sys.argv[1]}.",
+        f"Complete all Phase {'5' if phase == 5 else '6'} gates before exiting. "
+        f"Emergency bypass: set status='failed' in {sys.argv[1]}.",
         file=sys.stderr,
     )
     sys.exit(2)
