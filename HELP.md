@@ -85,8 +85,10 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `REVIEW_PREAMBLE` | `.claude/shared/review-preamble.md` | Reviewer posture file injected at start of every review dispatch | |
 | `PROMOTION_THRESHOLD` | `3` | Min occurrences for Phase 6 promote recommendation | `PROMOTION_THRESHOLD=2` |
 | `SEVERITY_OVERRIDE_PROMOTION` | `["critical"]` | Severities that recommend promotion at 1 occurrence | |
-| `PROMOTION_GATE_MODE` | `interactive` | Phase 6 gate mode. `interactive` = blocks until user decides each entry. `headless` = emits `promotion-bundle.md`, sets status to `needs-policy-decision`, continues without blocking. | `PROMOTION_GATE_MODE=headless` |
-| `VALIDATORS` | `[]` | Validator skills to run after each task's code quality review gate. Built-ins: `wiring-auditor`, `contract-auditor`, `failure-path-auditor`, `mutation-site-auditor`, `evidence-verifier`. All off by default. Projects add custom validators at `.claude/validators/<name>/SKILL.md`. | `VALIDATORS: [wiring-auditor, evidence-verifier]` |
+| `DEFECTS_FILE` | `.claude/defects.jsonl` | Append-only JSONL ledger for RCA records. Committed to git — persists across feature runs. | |
+| `POLICIES_FILE` | `.claude/policies.json` | Active policy registry promoted from defects.jsonl. Read by reviewers as supplement to review-standards.md. | |
+| `PROMOTION_GATE_MODE` | `interactive` | Phase 6 gate mode. `interactive` = blocks until user decides each entry. `headless` = emits `promotion-bundle.json`, sets status to `needs-policy-decision`, continues without blocking. | `PROMOTION_GATE_MODE=headless` |
+| `VALIDATORS` | `[]` | Validator skills to run after each task's code quality review gate. Each returns a JSON verdict. Built-ins: `wiring-auditor`, `contract-auditor`, `failure-path-auditor`, `mutation-site-auditor`, `evidence-verifier`. All off by default. Projects add custom validators at `.claude/validators/<name>/SKILL.md`. | `VALIDATORS: [wiring-auditor, evidence-verifier]` |
 
 Parameters not provided at invocation use their defaults. Use `project-config.yaml` to set project-wide defaults.
 
@@ -144,17 +146,22 @@ plan-and-execute:
 
 ---
 
-## Three Review-R Content Contract
+## Review Artifact Contract
 
-Three files shape reviewer behavior. Each has exactly one job:
+Four artifacts shape reviewer behavior. Each has exactly one job and one format:
 
-| File | Role | Size constraint |
-|------|------|----------------|
-| `review-standards.md` | Durable rule library — the authoritative escape-class catalog for this project | No limit (it's the canonical reference) |
-| `review-learnings.md` | Transient session ledger — AD/UG entries accumulated during a feature run; promoted to review-standards.md via the Phase 6 gate | Grows during a run; pruned after promotion |
-| `review-preamble.md` | ≤80-line reviewer-action pointer — posture file injected at the start of every reviewer dispatch | Hard cap: 80 lines. Never a rules catalog. |
+| Artifact | Format | Role | Constraint |
+|----------|--------|------|-----------|
+| `review-standards.md` | Markdown | Durable human-facing rule library — authoritative escape-class catalog | No size limit; this is the canonical reference |
+| `.claude/defects.jsonl` | JSONL | Append-only RCA ledger — one JSON record per line; last record per `id` is authoritative | Grows across runs; entries promoted via Phase 6 gate |
+| `.claude/policies.json` | JSON | Active policy registry — entries promoted from defects.jsonl; read by reviewers as a supplement to review-standards.md | Never delete entries; only append and update |
+| `.claude/shared/review-preamble.md` | Markdown | ≤80-line reviewer-action pointer — posture file injected at the start of every reviewer dispatch | Hard cap: 80 lines. Never a rules catalog. |
+
+**Why JSON for the ledger:** `review-context-compiler` filters defects.jsonl by `applies_to` field and sorts by `severity` and `occurrences` — deterministic operations on structured data. `policy-updater` reads occurrence counts and severity to apply threshold rules. Markdown parsing for these operations is fragile; JSON is not.
 
 **The preamble points to the standards; it does not summarize them.** If the preamble starts growing past 80 lines, content is going in the wrong place — move it to review-standards.md instead.
+
+**defects.jsonl is institutional memory.** It accumulates across feature runs and should be committed to git. When an entry is promoted to policies.json and review-standards.md, it stays in defects.jsonl with `"status": "promoted"` — audit trail preserved. See `templates/defects-schema.md` for the full schema.
 
 ---
 

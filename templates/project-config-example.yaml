@@ -53,6 +53,8 @@ plan-and-execute:
   PROMOTION_GATE_MODE: "interactive"             # FR-6: "interactive" (default) | "headless" (CI/Codex/parent-skill)
 
   # --- v2 plug points (FR-8 through FR-13) ---
+  DEFECTS_FILE: ".claude/defects.jsonl"          # FR-13/JSON: append-only RCA ledger (commit to git)
+  POLICIES_FILE: ".claude/policies.json"         # FR-13/JSON: active policy registry (commit to git)
   VALIDATORS: []                                 # FR-13: validator skills after each task's code quality gate
                                                  # Built-ins (all off by default): wiring-auditor, contract-auditor,
                                                  # failure-path-auditor, mutation-site-auditor, evidence-verifier

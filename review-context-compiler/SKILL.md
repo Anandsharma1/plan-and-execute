@@ -1,62 +1,65 @@
 ---
 name: review-context-compiler
-description: Compiles a role-filtered, severity-sorted review-learnings digest for injection into reviewer prompts. Called by plan-and-execute Phase 5 before each reviewer dispatch.
+description: Reads defects.jsonl and compiles a role-filtered, severity-sorted digest for injection into reviewer prompts. Deterministic JSON-in, markdown-out — no ambiguous text parsing.
 user-invokable: false
 ---
 
 # Review Context Compiler
 
-You are a context preparation step, not a reviewer. Your job is to produce a bounded, relevant digest from `review-learnings.md` so that the downstream reviewer gets the patterns most likely to recur — without being overwhelmed by the full ledger.
+You are a context preparation step, not a reviewer. Read `defects.jsonl`, apply deterministic filters, and return a markdown digest block ready for injection above a reviewer prompt.
 
 ## Inputs
 
-- **REVIEW_LEARNINGS_FILE** (required): path to `review-learnings.md`
+- **DEFECTS_FILE** (default: `.claude/defects.jsonl`): the defect ledger
 - **ROLE** (required): `spec-reviewer` | `code-quality-reviewer` | `domain-reviewer`
-- **CAP** (optional, default 15): maximum entries to include in the digest
+- **CAP** (optional, default 15): maximum entries in the digest
 
 ## Compilation Steps
 
-1. **Read** `REVIEW_LEARNINGS_FILE` in full.
+1. **Read** `DEFECTS_FILE`. Parse each line as JSON. For each unique `id`, take the **last record** as authoritative.
 
-2. **Filter by role relevance:**
-   - `spec-reviewer`: include UG-N entries (user-reported gaps) and AD-N entries tagged with spec/requirements/acceptance-criteria concerns
-   - `code-quality-reviewer`: include AD-N entries tagged with code quality, security, architecture, or SOLID/DRY/YAGNI concerns
-   - `domain-reviewer`: include AD-N entries tagged with domain rules, invariants, or project-specific patterns; include all UG-N entries
-   - When in doubt, include — false positives cost less than false negatives
+2. **Filter:**
+   - Keep only records where `status == "active"`
+   - Keep only records where `ROLE` appears in the record's `applies_to` array
 
-3. **Exclude promoted entries:** skip any entry with `Status: promoted` — it is already in `review-standards.md` and doesn't need re-surfacing.
+3. **Sort (deterministic):**
+   - Primary: `severity` descending — `critical` (0) → `high` (1) → `medium` (2) → `low` (3)
+   - Secondary: `occurrences` descending (more frequent patterns first within same severity)
+   - Tertiary: `updated_at` descending (most recently active first)
 
-4. **Sort by severity** (descending): `critical` → `high` → `medium` → `low`
+4. **Cap:** Take the first `CAP` entries. If more were filtered out, note the count.
 
-5. **Sort by recency** within each severity tier: most recently added first (use the entry number or date if present).
+## Output
 
-6. **Cap at `CAP` entries.** If entries were excluded due to the cap, note the count: "X additional entries omitted (see review-learnings.md)."
-
-## Output Format
-
-Produce a markdown block ready to inject above the reviewer prompt. No headers that clash with the reviewer prompt structure — use a flat list:
+Return a markdown block only — no additional prose around it:
 
 ```markdown
-## Review Context: Patterns from This Run
+## Review Context: Active Patterns
 
-The following patterns were detected or reported during this feature run. Check for recurrence:
+Check for recurrence of these patterns detected during this feature run:
 
-- **[AD-N / UG-N] <Pattern name>** (Severity: <level>): <one-line review instruction>. See review-learnings.md §<entry>.
-- ...
+- **[AD-1] Missing input validation on public endpoints** (high, 4 occurrences): Verify every public endpoint validates all user-supplied inputs before calling service layer.
+- **[UG-1] Edge case not covered in spec** (medium, 2 occurrences): Confirm spec enumerates all edge cases before marking spec compliance as passing.
 
-<If cap was hit:> _X additional entries omitted — see review-learnings.md for full ledger._
+_2 additional active patterns omitted (below cap). See .claude/defects.jsonl for full ledger._
 ```
 
-If `REVIEW_LEARNINGS_FILE` does not exist or contains no entries matching the role filter, output:
+Format each entry as:
+```
+- **[<id>] <pattern>** (<severity>, <occurrences> occurrence(s)): <review_instruction>
+```
+
+If `DEFECTS_FILE` does not exist, or no entries match the role filter after filtering, return:
 
 ```markdown
-## Review Context: Patterns from This Run
+## Review Context: Active Patterns
 
-No prior patterns recorded for this role. Review from first principles.
+No active patterns recorded for this role. Review from first principles.
 ```
 
 ## What This Is NOT
 
-- Do not make review judgments — that is the reviewer's job
-- Do not summarize or rewrite entries — preserve the original instruction text
-- Do not include full RCA fields in the digest — only Pattern name, Severity, and one-line instruction
+- Do not make review judgments — only compile the digest
+- Do not summarize or rewrite `review_instruction` fields — preserve them verbatim
+- Do not include RCA fields (`symptom`, `root_cause`, etc.) in the digest — one-line instruction only
+- Do not include `promoted` or `closed` entries — those are already in `review-standards.md` or resolved

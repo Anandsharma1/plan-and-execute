@@ -91,9 +91,11 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | STATE_FILE | `${CONTEXT_DIR}/.plan-and-execute.state.json` | Phase guard state file written on every phase transition. Read by `hooks/phase_guard.sh` Stop hook. |
 | PLAN_ANALYSER | `general-purpose` | Subagent type for Phase 3 independent plan critique. Set to `"none"` to fall back to inline analysis (with a warning logged). |
 | REVIEW_PREAMBLE | `.claude/shared/review-preamble.md` | Reviewer posture file injected at the start of every reviewer dispatch. Omit or leave unset to fall back to `${REVIEW_STANDARDS}` directly. |
-| PROMOTION_THRESHOLD | `3` | Minimum occurrence count for a review-learnings.md entry to be recommended for promotion in the Phase 6 promotion gate. |
-| SEVERITY_OVERRIDE_PROMOTION | `["critical"]` | Severity levels that trigger a promote recommendation regardless of occurrence count (e.g., a critical finding at 1 occurrence recommends promotion). |
-| PROMOTION_GATE_MODE | `interactive` | Phase 6 promotion gate mode. `interactive` = present table and require user decisions (default for conversational use). `headless` = emit a promotion artifact and mark run "needs-policy-decision" without blocking (for CI/parent-skill/Codex use). |
+| DEFECTS_FILE | `.claude/defects.jsonl` | Append-only JSONL ledger for RCA records written by `retrospect-execution`. Read by `review-context-compiler` and `policy-updater`. Committed to git — institutional memory across runs. |
+| POLICIES_FILE | `.claude/policies.json` | Active policy registry written by `policy-updater` on promotion decisions. Read by reviewers as a supplement to `review-standards.md`. |
+| PROMOTION_THRESHOLD | `3` | Minimum occurrence count in `defects.jsonl` for a `policy-updater` promote recommendation in the Phase 6 promotion gate. |
+| SEVERITY_OVERRIDE_PROMOTION | `["critical"]` | Severity levels that trigger a promote recommendation regardless of occurrence count. |
+| PROMOTION_GATE_MODE | `interactive` | Phase 6 promotion gate mode. `interactive` = present table and require user decisions (default for conversational use). `headless` = emit `promotion-bundle.json`, mark run `needs-policy-decision`, continue without blocking. |
 
 ### Project Config File (Optional)
 
@@ -144,7 +146,9 @@ concept & design         planning-with-files          plan generation         ta
 | `task_plan.md` | Meta-workflow tracker (which phase am I in?) | All phases |
 | `findings.md` | Research knowledge base | Phase 2 (Research) |
 | `progress.md` | Chronological session log | All phases |
-| `review-learnings.md` | Accumulated review patterns (user-reported gaps + auto-detected) | Phase 5 (execution), Phase 6 (promotion) |
+| `.claude/defects.jsonl` | Append-only RCA ledger — one JSON record per line (authoritative: last record per id) | Phase 5 (retrospect-execution appends), Phase 6 (policy-updater promotes) |
+| `.claude/policies.json` | Active policy registry promoted from defects.jsonl | Phase 6 (policy-updater writes), reviewers read as supplement to review-standards.md |
+| `.claude/critic.json` | Latest plan critique from plan-analyser (machine-readable verdict) | Phase 3 (plan-analyser writes), orchestrator reads verdict for convergence loop |
 | `docs/plans/*.md` | Formal RALPH implementation plan + tasks | Phase 3 (Plan) + Phase 4 (Tasks) |
 
 **Conflict rules:**
@@ -167,12 +171,12 @@ concept & design         planning-with-files          plan generation         ta
 | `./code-quality-reviewer-prompt.md` | Phase 5 (all topologies) | Git SHA-scoped code quality review (SOLID, DRY, YAGNI, CWE security, config sprawl) |
 | `../domain-code-review/SKILL.md` | Phase 5 + 6, standalone | Project-specific review: review-standards.md, env-config-policy, logging compliance. Sibling skill — also invocable independently as `/domain-code-review`. |
 | `./plan-analyser/SKILL.md` | Phase 3 | Independent 7-dimension plan critique — dispatched as fresh subagent. User-invokable standalone as `/plan-analyser`. |
-| `./review-context-compiler/SKILL.md` | Phase 5 (before each reviewer dispatch) | Compiles role-filtered, severity-sorted digest from review-learnings.md for injection into reviewer prompts |
-| `./retrospect-execution/SKILL.md` | Phase 5 (per-task) + Phase 6 | Classifies reviewer findings into AD-N/UG-N RCA entries; appends to review-learnings.md |
+| `./review-context-compiler/SKILL.md` | Phase 5 (before each reviewer dispatch) | Reads defects.jsonl, compiles role-filtered severity-sorted digest for injection into reviewer prompts — deterministic JSON-in, markdown-out |
+| `./retrospect-execution/SKILL.md` | Phase 5 (per-task) + Phase 6 | Classifies reviewer findings into RCA records and appends to defects.jsonl — JSON-only output |
 | `./policy-updater/SKILL.md` | Phase 6 (promotion gate) | Presents qualified entries for promotion; handles interactive and headless modes. User-invokable standalone as `/policy-updater`. |
 | `./validators/*/SKILL.md` | Phase 5 (after code quality, opt-in via VALIDATORS) | One validator per risk class — wiring, contracts, failure paths, mutation sites, evidence. Each returns pass/fail/skip verdict. |
 | `./templates/task-plan-template.md` | Phase 0 | 7-phase task_plan.md template with Plan Details tracking table |
-| `./templates/review-learnings-template.md` | Phase 0 | Starter review-learnings.md — accumulated review patterns during execution |
+| `./templates/defects-schema.md` | Reference | JSON artifact schemas for defects.jsonl, policies.json, critic.json, validator-result.json, promotion-bundle.json |
 | `./templates/plan-analyser-prompt.md` | Authoritative criteria source | 7-dimension criteria referenced by plan-analyser/SKILL.md — do not duplicate |
 | `./templates/review-preamble-template.md` | Phase 0 (setup) | Scaffolded into `.claude/shared/review-preamble.md`; injected at the top of every reviewer dispatch |
 | `./templates/claude-md-agent-dispatch-discipline.md` | Phase 0 (setup) | Scaffolded into project CLAUDE.md between sentinel markers on first-run |
@@ -278,7 +282,10 @@ For default-on domain reviewer:
 
 `findings.md` and `progress.md` as created by the plugin are used as-is.
 
-3. Create `${CONTEXT_DIR}/review-learnings.md` from `./templates/review-learnings-template.md`. This file accumulates review patterns during Phase 5 execution (user-reported gaps + auto-detected patterns). Reviewers load it before each dispatch.
+3. Initialize JSON artifact files if they do not already exist (never overwrite — these accumulate across runs):
+   - `${DEFECTS_FILE}` (default: `${CONTEXT_DIR}/.claude/defects.jsonl`): create as an empty file. This is the append-only RCA ledger.
+   - `${POLICIES_FILE}` (default: `${CONTEXT_DIR}/.claude/policies.json`): create with `{"version": "1", "policies": [], "updated_at": "<ISO-timestamp>"}`.
+   Both files should be committed to git — they are the project's institutional memory across feature runs. If a `.gitignore` would exclude `.claude/`, add an exception for `defects.jsonl` and `policies.json`.
 
 4. Write `${STATE_FILE}` with initial state:
    ```json
@@ -571,8 +578,8 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./implementer-prompt.md` -- how implementer subagents should be prompted
    - `./spec-reviewer-prompt.md` -- how spec compliance review works
    - `./code-quality-reviewer-prompt.md` -- how code quality review works
-   - If `${CONTEXT_DIR}/review-learnings.md` exists, read it
    - If `${REVIEW_STANDARDS}` exists, read it
+   - If `${POLICIES_FILE}` exists and is non-empty, read it (active policies supplement review-standards.md)
 
    **Why this step exists:** After context compaction, the orchestrator retains WHAT tasks to do but loses HOW each task should be executed (review gates, prompt structure, dispatch protocol). This re-read prevents the most common failure mode: dispatching implementation-only agents without review stages.
 
@@ -636,7 +643,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./code-quality-reviewer-prompt.md` -- git SHA-scoped quality review (includes CWE + config sprawl)
    - `/domain-code-review` skill -- project-specific standards review (review-standards.md, env-config-policy, logging). Invoke after code-quality review passes.
    - If `${REVIEW_PREAMBLE}` file exists, all reviewer dispatch prompts already include the mandatory first-read instruction (it is baked into the template files above). If `REVIEW_PREAMBLE` is unset or missing, reviewers fall back to reading `${REVIEW_STANDARDS}` directly — log a warning to `progress.md`.
-   - Before each reviewer dispatch, invoke `Skill("review-context-compiler", ROLE=<role>, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)` and inject the returned digest block above the reviewer prompt. If review-learnings.md does not exist or is empty, the skill returns a "no prior patterns" block — inject that too so the reviewer sees the signal is clean, not missing. See `./review-context-compiler/SKILL.md` for the digest compilation contract.
+   - Before each reviewer dispatch, invoke `Skill("review-context-compiler", ROLE=<role>, DEFECTS_FILE=${DEFECTS_FILE})` and inject the returned digest block above the reviewer prompt. The skill reads defects.jsonl deterministically (JSON filter + sort), returns a markdown block. If defects.jsonl does not exist or has no matching entries, the skill returns a "no active patterns" block — inject that too so the reviewer sees the signal is clean, not missing. See `./review-context-compiler/SKILL.md`.
 
    **Rules:**
    - Never dispatch code quality review before spec compliance passes
@@ -644,10 +651,10 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - If implementer fails a task, dispatch a fix subagent -- don't fix manually (context pollution)
 
    **User Feedback Capture:**
-   If the user identifies a gap mid-task, immediately invoke `Skill("retrospect-execution", TASK_ID=<current task>, REVIEWER_FINDINGS=<user's gap description>, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)`. The skill classifies it as a UG-N entry and appends it. All subsequent reviewer dispatches pick it up via `review-context-compiler`.
+   If the user identifies a gap mid-task, immediately invoke `Skill("retrospect-execution", TASK_ID=<current task>, REVIEWER_FINDINGS=<user's gap description>, DEFECTS_FILE=${DEFECTS_FILE})`. The skill appends a UG-N JSON record to defects.jsonl. All subsequent reviewer dispatches pick it up via `review-context-compiler`.
 
    **Per-task retrospection:**
-   After each task's review cycle completes (spec review + code quality review both passed), invoke `Skill("retrospect-execution", TASK_ID=<id>, REVIEWER_FINDINGS=<all reviewer outputs for this task>, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)`. The skill classifies findings into AD-N/UG-N entries and appends or increments them. See `./retrospect-execution/SKILL.md` for the classification contract and entry format.
+   After each task's review cycle completes (spec review + code quality review both passed), invoke `Skill("retrospect-execution", TASK_ID=<id>, REVIEWER_FINDINGS=<all reviewer outputs for this task>, DEFECTS_FILE=${DEFECTS_FILE})`. The skill appends or updates JSON records in defects.jsonl. See `./retrospect-execution/SKILL.md`.
 
    **Validator dispatch:**
    If `${VALIDATORS}` is non-empty, after each task's code quality review passes, dispatch each configured validator as a fresh subagent:
@@ -880,9 +887,9 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
 5. **Retrospect and promote (mandatory — do not close Phase 6 without both steps):**
 
-   a. **Cross-feature retrospection:** Invoke `Skill("retrospect-execution", REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md)` with a summary of any cross-task patterns or reviewer blind spots not already captured per-task during Phase 5. This handles systematic patterns that only become visible at the feature level. See `./retrospect-execution/SKILL.md`.
+   a. **Cross-feature retrospection:** Invoke `Skill("retrospect-execution", DEFECTS_FILE=${DEFECTS_FILE})` with a summary of any cross-task patterns or reviewer blind spots not already captured per-task during Phase 5. The skill appends JSON records to defects.jsonl. See `./retrospect-execution/SKILL.md`.
 
-   b. **Promotion gate:** Invoke `Skill("policy-updater", GATE_MODE=${PROMOTION_GATE_MODE}, REVIEW_LEARNINGS_FILE=${CONTEXT_DIR}/review-learnings.md, REVIEW_STANDARDS_FILE=${REVIEW_STANDARDS}, PROMOTION_THRESHOLD=${PROMOTION_THRESHOLD}, SEVERITY_OVERRIDE_PROMOTION=${SEVERITY_OVERRIDE_PROMOTION})`. The skill reads review-learnings.md, presents the promotion table, and handles both interactive and headless modes. In headless mode it writes `promotion-bundle.md` and signals `needs-policy-decision`. See `./policy-updater/SKILL.md`.
+   b. **Promotion gate:** Invoke `Skill("policy-updater", GATE_MODE=${PROMOTION_GATE_MODE}, DEFECTS_FILE=${DEFECTS_FILE}, POLICIES_FILE=${POLICIES_FILE}, REVIEW_STANDARDS_FILE=${REVIEW_STANDARDS}, PROMOTION_THRESHOLD=${PROMOTION_THRESHOLD}, SEVERITY_OVERRIDE_PROMOTION=${SEVERITY_OVERRIDE_PROMOTION})`. The skill reads defects.jsonl (JSON parsing — no markdown ambiguity), presents the promotion table, writes to policies.json and review-standards.md on approve, or emits `promotion-bundle.json` in headless mode. See `./policy-updater/SKILL.md`.
 
    **Do NOT close Phase 6 without running both steps.** Per-task retrospection in Phase 5 captures individual task patterns. This step catches what only the full-feature view reveals.
 
@@ -938,7 +945,7 @@ This is the primary advantage of this unified skill -- the planning files make y
 - **Never proceed from Phase 4 to Phase 5** without tasks appended to the plan file
 - **Never skip the Phase 5 step 2 protocol re-read** -- this is the primary defense against context compaction losing process requirements
 - **Never declare Phase 5 complete without passing the Phase 5->6 hard gate** (step 13) -- all tasks implemented, batch review run, RALPH finalization passed
-- **Never skip Phase 6** -- it is mandatory, not optional. Phase 6 is where domain-code-review, security check, review-learnings consolidation, and documentation gates happen. "All tasks done" does NOT mean the feature is complete.
+- **Never skip Phase 6** -- it is mandatory, not optional. Phase 6 is where domain-code-review, security check, defect retrospection, promotion gate, and documentation gates happen. "All tasks done" does NOT mean the feature is complete.
 - **Treat domain reviewer as default-on** -- if `DOMAIN_REVIEWER=domain-reviewer` is missing, flag it; only `DOMAIN_REVIEWER=none` is a valid opt-out.
 - **Never treat missing optional dependencies as implicit failures** -- use fallback paths and log only decision events.
 - **Always apply the 2-Action Rule** during research -- write findings to disk after every 2 reads/searches
@@ -947,8 +954,8 @@ This is the primary advantage of this unified skill -- the planning files make y
 - **`superpowers:brainstorming` in Phase 1 is intentional** -- it is explicitly invoked by user choice, not an auto-trigger. Do not suppress it. However, if superpowers skills auto-trigger during Phases 2-6, follow plan-and-execute protocol instead. Do not follow the superpowers flow in parallel -- it creates a duplicate dispatch loop.
 - **Do not re-run plan analysis** in Phase 5 -- the plan was already validated in Phase 3.
 - **Write `${STATE_FILE}` on every phase transition** -- this is what the Stop hook reads. Missing a write means the hook cannot enforce the phase boundary.
-- **Never auto-promote review-learnings.md entries** -- the Phase 6 promotion gate surfaces decisions; it does not make them. Present the table and require explicit per-entry decisions.
-- **Never close Phase 6 without running the promotion gate** -- even if review-learnings.md is empty, confirm it explicitly.
+- **Never auto-promote defects.jsonl entries** -- the Phase 6 promotion gate surfaces decisions; it does not make them. Present the table and require explicit per-entry decisions.
+- **Never close Phase 6 without running the promotion gate** -- even if defects.jsonl is empty, confirm it explicitly.
 - **Tests must verify real behavior, not exist for count.** Every test must answer: "what business-level or functional behavior does this prove works?" Tests that merely exercise code paths, assert mocks were called, or restate the implementation are worthless. Reject them in review.
 
 ## Relationship to Individual Skills
