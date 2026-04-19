@@ -71,6 +71,8 @@ cp -r plan-and-execute/.codex/skills/plan-and-execute/ .codex/skills/plan-and-ex
 cp -r plan-and-execute/.codex/skills/domain-code-review/ .codex/skills/domain-code-review/
 ```
 
+For a real Codex-native adoption plan, see [docs/specs/codex-adoption-playbook.md](docs/specs/codex-adoption-playbook.md).
+
 ### Gemini CLI
 
 ```bash

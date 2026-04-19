@@ -1,0 +1,44 @@
+{
+  "env": {
+    "CLAUDE_CODE_USE_TOOL_SEARCH_TOOL": "1",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "400000"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/skills/plan-and-execute/hooks/block_sensitive_files.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/skills/plan-and-execute/hooks/python_post_edit.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/skills/plan-and-execute/hooks/phase_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

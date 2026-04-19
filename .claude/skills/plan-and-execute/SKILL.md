@@ -181,7 +181,9 @@ concept & design         planning-with-files          plan generation         ta
 | `./templates/review-preamble-template.md` | Phase 0 (setup) | Scaffolded into `.claude/shared/review-preamble.md`; injected at the top of every reviewer dispatch |
 | `./templates/claude-md-agent-dispatch-discipline.md` | Phase 0 (setup) | Scaffolded into project CLAUDE.md between sentinel markers on first-run |
 | `./setup-prompt.md` | Phase 0 (first run only) | Auto-detection + guided setup flow — loaded when `.claude/.plan-and-execute-setup.done` is absent |
-| `./hooks/phase_guard.sh` | Stop hook (registered by install.sh) | Blocks session exit when a run is in_progress and has not reached Phase 6 |
+| `./hooks/phase_guard.py` | Stop hook (registered via setup FR-7c) | Blocks session exit when phase ≥ 5 and STATE_FILE status is not "complete" |
+| `./hooks/block_sensitive_files.sh` | PreToolUse hook (registered via setup FR-7a) | Blocks edits to .env, credential, and key files |
+| `./hooks/python_post_edit.sh` | PostToolUse hook (registered via setup FR-7b) | Auto-formats Python files with ruff + syntax-checks on every edit |
 
 ### Bootstrap Templates (for new projects)
 
