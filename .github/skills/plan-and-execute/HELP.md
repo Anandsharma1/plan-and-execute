@@ -163,6 +163,18 @@ Four artifacts shape reviewer behavior. Each has exactly one job and one format:
 
 **defects.jsonl is institutional memory.** It accumulates across feature runs and should be committed to git. When an entry is promoted to policies.json and review-standards.md, it stays in defects.jsonl with `"status": "promoted"` — audit trail preserved. See `templates/defects-schema.md` for the full schema.
 
+### Rule-content boundaries (non-duplication charter)
+
+Three artifacts carry reviewer-adjacent *rules*. Each owns exactly one kind of content; content from the wrong bucket drifts and silently contradicts over time. Use this charter when deciding where a new rule belongs:
+
+| Artifact | Owns | Must NOT own | Audience |
+|----------|------|--------------|----------|
+| `${REVIEW_PREAMBLE}` (default `.claude/shared/review-preamble.md`) | Loader chain (which files to read), reviewer posture (derive-status-from-code, adversarial enumeration), pointers to standards | Catalog of escape classes, severity rubric definitions, full rule text (keep pointers only) | Reviewer subagent (injected at dispatch) |
+| `${REVIEW_STANDARDS}` (default `docs/review-standards.md`) | Full rule catalog: architecture/domain/clean-code/tests/invariants, severity rubric, output contract (§6) | Dispatch orchestration, prompt assembly, mirror/install mechanics | Reviewer subagent (via preamble), humans, CI |
+| `CLAUDE.md § Agent Dispatch Discipline` (orchestrator-side) | Dispatch protocol (sequential write-capable agents, destructive-git prohibition, carry-open-issues-forward, sibling-pattern sweep, write-learnings-back cadence, parallel-reviewer guidance), review prompt framing | Rule text consumed inside the reviewer prompt | Orchestrator only — never injected into reviewer subagents |
+
+**The rule:** if content fits in two buckets, the more specific (lower-in-chain) bucket wins. Preamble points to standards for rule text; standards never describe dispatch; dispatch discipline never restates review rules. A reviewer subagent should read the preamble, follow its links, and produce the §6 output — nothing the orchestrator did to dispatch it should leak into its context.
+
 ---
 
 ## Skill Decomposition Model
