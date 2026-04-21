@@ -137,6 +137,25 @@ else
   fail "HELP.md Parameters table missing REVIEW_CONTEXT_MAP row"
 fi
 
+# SKILL.md Parameters table must document REVIEW_CONTEXT_MAP (top-level + every mirror)
+if grep -qE '^\| REVIEW_CONTEXT_MAP \|' SKILL.md 2>/dev/null; then
+  ok "SKILL.md Parameters table documents REVIEW_CONTEXT_MAP"
+else
+  fail "SKILL.md Parameters table missing REVIEW_CONTEXT_MAP row"
+fi
+skill_mirror_miss=0
+for m in "${MIRRORS[@]}"; do
+  mf="$m/skills/plan-and-execute/SKILL.md"
+  if [ ! -f "$mf" ]; then continue; fi
+  if ! grep -qE '^\| REVIEW_CONTEXT_MAP \|' "$mf" 2>/dev/null; then
+    fail "$mf Parameters table missing REVIEW_CONTEXT_MAP row"
+    skill_mirror_miss=$((skill_mirror_miss+1))
+  fi
+done
+if [ "$skill_mirror_miss" -eq 0 ]; then
+  ok "all 6 mirror SKILL.md Parameters tables document REVIEW_CONTEXT_MAP"
+fi
+
 # Rule-content boundaries (non-duplication charter) must exist in HELP.md
 if grep -qF 'Rule-content boundaries' HELP.md 2>/dev/null; then
   ok "HELP.md carries 'Rule-content boundaries' non-duplication charter"

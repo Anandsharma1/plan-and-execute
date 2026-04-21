@@ -89,6 +89,7 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | STATE_FILE | `${CONTEXT_DIR}/.plan-and-execute.state.json` | Phase guard state file written on every phase transition. Read by `hooks/phase_guard.sh` Stop hook. |
 | PLAN_ANALYSER | `general-purpose` | Subagent type for Phase 3 independent plan critique. Set to `"none"` to fall back to inline analysis (with a warning logged). |
 | REVIEW_PREAMBLE | `.claude/shared/review-preamble.md` | Reviewer posture file injected at the start of every reviewer dispatch. Omit or leave unset to fall back to `${REVIEW_STANDARDS}` directly. |
+| REVIEW_CONTEXT_MAP | `[]` | Optional list of project-specific docs (architecture, invariants, glossary) appended to the reviewer mandatory-reads chain after `${REVIEW_STANDARDS}` and `${ENV_CONFIG_POLICY}`. Each entry is a path relative to `${PROJECT_ROOT}`. |
 | DEFECTS_FILE | `.claude/defects.jsonl` | Append-only JSONL ledger for RCA records written by `retrospect-execution`. Read by `review-context-compiler` and `policy-updater`. Committed to git — institutional memory across runs. |
 | POLICIES_FILE | `.claude/policies.json` | Governance audit log — tracks what was promoted, when, and why. Promoted rules are enforced via `review-standards.md` (which `policy-updater` writes into); `policies.json` is not injected into reviewer subagents. |
 | PROMOTION_THRESHOLD | `3` | Minimum occurrence count in `defects.jsonl` for a `policy-updater` promote recommendation in the Phase 6 promotion gate. |
