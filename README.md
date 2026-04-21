@@ -255,6 +255,38 @@ Guides you through filling in the project layer after install. See Step 2 above.
 
 ---
 
+## Contributor Setup
+
+If you're editing the skill itself (not just using it), install the repo's
+pre-commit hook once:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+This sets `git config core.hooksPath .githooks` and activates
+`.githooks/pre-commit`, which runs `scripts/audit-harness-consistency.sh`
+before every commit. The audit catches:
+
+- stale severity-rubric residue (the old three-tier trio, now replaced by Critical / High / Medium / Low)
+- legacy implementer/agent-claims injection sections in reviewer prompts
+- missing `${REVIEW_PREAMBLE}` wiring in reviewer entry points
+- missing Batch 3 primitives (`REVIEW_CONTEXT_MAP` config key, charter, etc.)
+- mirror drift across the 6 install targets (`.claude`, `.agents`, `.cursor`,
+  `.github`, `.gemini`, `.codex`)
+
+If the audit fails on mirror drift, resync with:
+
+```bash
+./scripts/sync-ide-folders.sh
+git add -A && git commit   # re-run your original commit
+```
+
+Non-drift failures (stale rubric, missing wiring) must be fixed manually;
+`sync-ide-folders.sh` will not repair them.
+
+---
+
 ## Acknowledgements
 
 - [planning-with-files](https://github.com/OthmanAdi/planning-with-files) by @OthmanAdi — persistent context management and session recovery

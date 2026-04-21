@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block commits that introduce harness consistency drift.
+#
+# Runs scripts/audit-harness-consistency.sh. The audit covers stale severity
+# rubric residue, legacy injection sections, preamble-first wiring, Batch 3
+# primitives, and mirror parity across the 6 install targets.
+#
+# If the audit fails, this hook prints actionable resync commands and exits
+# non-zero. It does NOT auto-modify files -- resyncing mirrors is a deliberate
+# step so the diff stays reviewable and the harness stays deterministic.
+#
+# Install:  ./scripts/install-git-hooks.sh   (sets core.hooksPath=.githooks)
+# Bypass:   git commit --no-verify           (use sparingly; CI is not yet in place)
+
+set -u
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+if [ ! -x ./scripts/audit-harness-consistency.sh ]; then
+  echo "pre-commit: scripts/audit-harness-consistency.sh missing or not executable; skipping."
+  exit 0
+fi
+
+if ./scripts/audit-harness-consistency.sh; then
+  exit 0
+fi
+
+cat <<'EOF'
+
+pre-commit: harness consistency check failed (see audit output above).
+
+If the failures are mirror drift only, resync and re-stage:
+
+  ./scripts/sync-ide-folders.sh
+  git add -A
+  git commit          # re-run the commit you just attempted
+
+Any non-drift failures (stale rubric, missing preamble wiring, missing
+Batch 3 primitives) must be fixed manually -- sync-ide-folders.sh will not
+repair them.
+
+To bypass intentionally (not recommended): git commit --no-verify
+EOF
+
+exit 1
