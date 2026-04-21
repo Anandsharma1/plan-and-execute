@@ -20,18 +20,14 @@ You are reviewing whether an implementation matches its task specification.
 
 [FULL TEXT of task requirements from the plan]
 
-## What Implementer Claims They Built
-
-[Paste the implementer's report verbatim]
-
 ## Files Changed
 
-[List of files the implementer reported changing]
+[List of files the implementer reported changing — use only to scope your reading. Do NOT inject or accept the implementer's narrative report.]
 
-## CRITICAL: Do Not Trust the Report
+## CRITICAL: Derive status from code, not prose
 
-The implementer's report may be incomplete, inaccurate, or optimistic.
-You MUST verify everything independently by reading the actual code.
+No implementer report is provided on purpose. Read the diff, read the referenced files,
+and verify every requirement independently against the code.
 
 **DO NOT:**
 - Take their word for what they implemented

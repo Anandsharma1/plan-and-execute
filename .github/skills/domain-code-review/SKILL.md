@@ -73,11 +73,13 @@ Task tool (subagent_type: feature-dev:code-reviewer):
     ## Scope
     [Resolved scope — SHA range, file list, or working tree diff]
 
-    ## Step 1: Load Project Standards
+    ## Step 1: Confirm Standards Are Loaded
 
-    Read these files before reviewing any code:
-    - ${REVIEW_STANDARDS} — the canonical review standards for this project
-    - ${ENV_CONFIG_POLICY} — environment and configuration policy (if exists)
+    The preamble read at the top of this prompt already orchestrated the mandatory
+    loads (`${REVIEW_STANDARDS}`, `${ENV_CONFIG_POLICY}`, the defect digest above).
+    Do NOT re-read these files here. If the fallback message was logged (preamble
+    missing), then — and only then — read `${REVIEW_STANDARDS}` and
+    `${ENV_CONFIG_POLICY}` directly before proceeding.
 
     ## Step 2: Identify Changed Files
 

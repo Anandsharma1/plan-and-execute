@@ -19,18 +19,15 @@ You are reviewing whether an agent's implementation matches its specification.
 
 [FULL TEXT of specs/agent-<role>.md -- paste it here]
 
-## Agent's Claimed Outputs
-
-[Paste what the agent reported: files changed, outputs produced, etc.]
-
 ## Files Actually Changed
 
 [List from git diff --name-only comparing pre-run to post-run snapshots]
 
-## CRITICAL: Verify Against the Spec, Not the Report
+## CRITICAL: Derive status from code, not prose
 
-The agent may have missed requirements, over-built, or misunderstood its scope.
-You MUST verify everything by reading the actual code.
+No agent claims or completion report is injected here on purpose. Read the spec, read the
+diff, and verify every declared output, step, and boundary rule by inspecting the actual
+code.
 
 ## Your Job
 
@@ -52,7 +49,7 @@ For each step in the spec's "Steps" section:
 Compare "Files Actually Changed" to the spec's "Files Owned" section:
 - Did the agent ONLY modify files it owns?
 - Are there unauthorized changes to files outside its scope?
-- (File ownership violations are CRITICAL -- flag immediately)
+- (File ownership violations are Critical -- flag immediately)
 
 ### 4. Per-Agent RALPH Criteria
 For each criterion in the spec's "RALPH Criteria" section:
@@ -75,7 +72,7 @@ Check the spec's "Boundary Rules" section:
 - FAIL **Issues found** -- list specifically:
   - MISSING OUTPUT: [declared output not produced or incomplete]
   - MISSING STEP: [spec step not implemented, with details]
-  - FILE OWNERSHIP VIOLATION: [unauthorized file changes -- CRITICAL]
+  - FILE OWNERSHIP VIOLATION: [unauthorized file changes -- Critical]
   - RALPH CRITERIA FAILED: [which criterion, why]
   - BOUNDARY VIOLATION: [which rule was broken]
   - EXTRA WORK: [what was added beyond spec scope]

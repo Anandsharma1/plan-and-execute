@@ -47,4 +47,28 @@ Don't reason about runtime semantics — verify empirically.
 When you add a guard (test, invariant check, hook), mutate the invariant in place and verify
 the guard FAILS. A passing test after adding a guard is not evidence the guard works — it
 might be passing vacuously.
+
+### Carry open issues forward
+Every fix-back review prompt MUST include a "Still-open issues from prior rounds" section
+listing previously identified unfixed issues by file and line. Diff-scope alone misses
+defects in untouched files. If a known issue was not addressed in the current commit, the
+reviewer must confirm it is still open.
+
+### Sibling-pattern enforcement
+When a fix is applied to function A (guard, null-check, resource close), the reviewer MUST
+grep for all sibling functions with the same call pattern and verify each has the same fix.
+A review that confirms function A is correct without checking B and C is incomplete.
+
+### Write learnings back before the next round
+After consolidating reviewer findings, new patterns MUST be written back to
+`review-learnings.md` (or appended to `defects.jsonl` for the structured variant) BEFORE
+dispatching the next review round. Patterns not written back are patterns the next reviewer
+will miss.
+
+### Parallel reviewers (recommended when available)
+For medium+ complexity changes, dispatching a domain reviewer and a generic code-quality
+reviewer in parallel is recommended — they are read-only and safe to parallelize, and each
+surfaces different findings (domain rules vs. SOLID/security/style). Consolidate findings
+before dispatching fix-back. This is guidance, not a hard rule: projects without a domain
+reviewer, or with a lighter review surface, can safely skip it.
 <!-- END plan-and-execute:agent-dispatch-discipline -->

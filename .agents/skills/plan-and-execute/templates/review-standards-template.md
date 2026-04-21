@@ -116,6 +116,7 @@ tests/         # Test suite
 - **REQUIRED**: Handle specific exceptions, not bare `except Exception`
 - **REQUIRED**: Re-raise with chaining: `raise ValueError("msg") from e`
 - **VIOLATION**: Swallowing exceptions silently: `except Exception: return None`
+- **VIOLATION**: `from X import Y` inside `except:` or `finally:` blocks — a late `ImportError` here shadows the original exception and silences the real failure; hoist imports to module scope
 
 ## Imports
 

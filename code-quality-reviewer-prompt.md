@@ -19,9 +19,6 @@ Task tool (subagent_type: general-purpose):
 
     Review the code changes between commits [BASE_SHA] and [HEAD_SHA].
 
-    ## What Was Implemented
-    [From implementer's report -- what they claim they built]
-
     ## Task Requirements
     [Brief summary of the task from the plan]
 
@@ -43,9 +40,9 @@ Task tool (subagent_type: general-purpose):
     - Edge cases covered where the task spec mentions them
     - Tests are readable and maintainable
     - No test pollution (tests clean up after themselves)
-    - Padding tests that exist only to inflate count -> flag as Important issue
+    - Padding tests that exist only to inflate count -> flag as Medium issue
 
-    **Security (CWE -- flag as CRITICAL, do not defer):**
+    **Security (CWE -- flag as Critical, do not defer):**
     - CWE-89: SQL injection (raw string queries, unparameterized DB calls)
     - CWE-78: OS command injection (shell=True, unvalidated subprocess args)
     - CWE-79: XSS (if any HTML output is generated)
@@ -68,10 +65,11 @@ Task tool (subagent_type: general-purpose):
     - Module-specific config in module directory, not root
     - New config keys have type hints and are documented in module README or docstring
 
-    **Report Format:**
-    - **Strengths:** What was done well
-    - **Issues:** (Critical / Important / Minor) with file:line references
-    - **Assessment:** Approved / Approved with minor issues / Changes required
+    **Output:** Use the output structure defined in `${REVIEW_STANDARDS}` §6
+    (Findings / Plan Traceability Matrix / Residual Risk & Testing Gaps / Checklist Summary),
+    tag findings Critical/High/Medium/Low per the severity rubric, and emit an
+    Approved / Changes-required verdict. Critical and High findings block commit unless
+    explicitly deferred.
 ```
 
 ## For Topology C (agent-level review)

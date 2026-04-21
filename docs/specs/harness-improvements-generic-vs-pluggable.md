@@ -215,9 +215,9 @@ Silent success on a no-op is a Critical finding.
 ## Output
 
 Every review must produce:
-- Critical / Important / Minor severity tags
+- Critical / High / Medium / Low severity tags
 - Approved / Changes-required verdict
-- Critical and High findings block commit
+- Critical and High findings block commit (unless explicitly deferred)
 - Map findings to plan must-haves (if plan exists)
 ```
 

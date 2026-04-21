@@ -32,19 +32,36 @@ Silent success on a no-op is a **Critical** finding.
 ## Project-specific escape classes
 
 <!-- Project seeds this section from defects.jsonl AD-N entries (run /retrospect-execution to generate them).
-     Keep to <20 lines. Link to review-standards.md for the full catalog.
-     Example entry:
+     Keep the visible list under 20 lines. Link to review-standards.md for the full catalog.
+
+     Example entry format:
      - **Hardcoded credentials (AD-1):** Check all default values, env fallbacks, and test fixtures
        for embedded API keys, passwords, or tokens. See review-standards.md §2.
+
+     Generic starter set (uncomment to activate; replace with project-specific patterns as defects accumulate — these are illustrative defaults, not prescriptive rules):
+
+     - **Stub/fake data on production paths** — hardcoded scores, placeholder names, zero-value results that pass type checks but silently mislead users
+     - **Missing-metric null-collapse** — `value or 0`, `sum(x or 0 for …)`, `int(x or 0)` over a metric that may legitimately be None
+     - **Data-precedence overwrite** — enricher writing over a non-empty authoritative value; enrichment must be additive (fill missing only)
+     - **Thin-adapter violation** — business logic inside a router / controller beyond schema validation and error mapping
+     - **Cross-boundary internal import** — inner module reaching across a declared seam
+     - **Mutating immutable state** — write to an existing lineage / version record / content-addressed artifact post-creation
+     - **State-machine backward transition** — skipping or reversing a declared forward-only transition
+     - **Unjustified abstraction** — new protocol / factory / wrapper without a current boundary and ≥2 real implementations
+     - **Error-handling anti-patterns** — bare `except:`; broad `except Exception` without a narrow documented reason; `from X import Y` inside `except:` or `finally:` (late ImportError shadows the original exception)
 -->
 
 ## Output
 
-Every review must produce:
-- **Critical / Important / Minor** severity tags per finding
-- **Approved / Changes-required** verdict
-- Critical and Important findings block commit (unless user explicitly defers Important)
-- Map findings to plan must-haves (if a plan file was provided)
+Produce the full output structure defined in `${REVIEW_STANDARDS}` §6 (REVIEW OUTPUT FORMAT) — Findings, Plan Traceability Matrix (when plan/spec/tasks exist), Residual Risk & Testing Gaps, Checklist Summary.
+
+Operating rules:
+
+- Tag findings **Critical / High / Medium / Low** (rubric in `${REVIEW_STANDARDS}` §Severity)
+- Emit an **Approved / Changes-required** verdict
+- Critical and High findings block commit unless the user explicitly defers
+- Apply an 80%+ confidence threshold — uncertainty goes under Residual Risk, not as a finding
+- Map findings to plan must-haves when a plan file was provided
 
 ---
 

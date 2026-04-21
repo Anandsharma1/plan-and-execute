@@ -581,7 +581,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - `./implementer-prompt.md` -- how implementer subagents should be prompted
    - `./spec-reviewer-prompt.md` -- how spec compliance review works
    - `./code-quality-reviewer-prompt.md` -- how code quality review works
-   - If `${REVIEW_STANDARDS}` exists, read it
+   - If `${REVIEW_PREAMBLE}` exists, read it first — it is the canonical loader + posture layer for all reviewers, and it directs the preamble→standards→policy chain. If `${REVIEW_PREAMBLE}` is not set or missing, fall back to reading `${REVIEW_STANDARDS}` directly and note the fallback in `progress.md`.
    - If `${POLICIES_FILE}` exists and is non-empty, read it to verify current policy state (promoted rules are already present in review-standards.md — this read is for orchestrator awareness only, not passed to reviewer subagents)
 
    **Why this step exists:** After context compaction, the orchestrator retains WHAT tasks to do but loses HOW each task should be executed (review gates, prompt structure, dispatch protocol). This re-read prevents the most common failure mode: dispatching implementation-only agents without review stages.
@@ -723,7 +723,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
                |
    +-----------v---------------+
    | File ownership check       | <-- pre-run snapshot vs post-run snapshot
-   | (CRITICAL: unauthorized    |     newly_changed must be subset of Files Owned
+   | (Critical: unauthorized    |     newly_changed must be subset of Files Owned
    |  file changes = restore +  |
    |  re-execute)               |
    +-----------+---------------+
@@ -773,8 +773,8 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
 
    Then invoke `/domain-code-review` on the diff covering the completed batch (from the pre-batch SHA to HEAD). This catches project-specific standards violations (review-standards.md, env-config-policy, logging) that individual implementer self-reviews may miss.
 
-   - If domain review finds CRITICAL issues: fix before proceeding to the next batch
-   - If domain review finds Important issues: log in `progress.md`, fix before Phase 6
+   - If domain review finds Critical or High issues: fix before proceeding to the next batch
+   - If domain review finds Medium issues: log in `progress.md`, fix before Phase 6
    - Dispatch `${DOMAIN_REVIEWER}` unless `DOMAIN_REVIEWER=none`; if default reviewer is missing, flag and continue
 
    **This gate replaces per-task spec+code-quality review when using the Topology B practical simplification** (many parallel independent tasks with self-review). It ensures review coverage without requiring 3 agents per task.
@@ -826,7 +826,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
     **Pass criteria** -- ALL must be green before halting:
     - Integration tests: 0 failures, 0 errors
     - Linter: 0 violations (if `LINT_CMD` is set)
-    - Code-quality reviewer: Assessment = "Approved" or "Approved with minor issues" (no open CRITICAL issues)
+    - Code-quality reviewer: Assessment = "Approved" (no open Critical or High issues)
     - Every RALPH criterion in `${PLAN_DIR}/*.md`: explicitly assessed as met
 
     Delegate convergence to the `ralph-loop` plugin:
@@ -835,7 +835,7 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
       1. ${TEST_CMD} ${INTEGRATION_MARKERS}  (0 failures, 0 errors required)
       2. ${LINT_CMD}  (0 violations required)
       3. Dispatch code-quality-reviewer on the full diff since branch start.
-         Assessment must be Approved or Approved with minor issues, no open CRITICAL issues.
+         Assessment must be Approved, no open Critical or High issues.
       4. Assess every RALPH criterion in ${PLAN_DIR}/*.md against the current code.
     If ALL pass, output <promise>ALL_CRITERIA_GREEN</promise>.
     If any fail, diagnose and fix. For task-level fixes, dispatch a fresh subagent -- do not fix inline."
@@ -883,10 +883,10 @@ Log the number of tasks and workstream groupings (if Topology B/C) in `progress.
    - Verify: new config keys documented in module README.md
 
 4. **Domain review** (skip for infra/config-only changes):
-   Invoke `/domain-code-review` skill on the full branch diff. This skill reads `${REVIEW_STANDARDS}`, `${ENV_CONFIG_POLICY}`, and the `logging:` config block, then dispatches a reviewer subagent.
+   Invoke `/domain-code-review` skill on the full branch diff. The reviewer loads its context via the preamble-first chain (`${REVIEW_PREAMBLE}` → `${REVIEW_STANDARDS}` → `${ENV_CONFIG_POLICY}` → `logging:` config block), then dispatches a reviewer subagent. If `${REVIEW_PREAMBLE}` is missing, the skill falls back to reading `${REVIEW_STANDARDS}` directly.
    - With default-on behavior, dispatch `${DOMAIN_REVIEWER}` unless `DOMAIN_REVIEWER=none`
    - If `DOMAIN_REVIEWER=domain-reviewer` but file is missing, flag it in `progress.md` and final summary
-   - CRITICAL findings must be fixed before PR; Important findings require acknowledgment
+   - Critical and High findings must be fixed before PR; Medium findings require acknowledgment
 
 5. **Retrospect and promote (mandatory — do not close Phase 6 without both steps):**
 
