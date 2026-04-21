@@ -111,7 +111,55 @@ do
   fi
 done
 
-# --- Check 5: mirror parity for shared files ---------------------------
+# --- Check 5: Batch 3 primitives wired end-to-end -----------------------
+section "Batch 3 primitives wired"
+
+# REVIEW_CONTEXT_MAP must be a real config key (YAML key, not just prose)
+if grep -qE '^[[:space:]]*REVIEW_CONTEXT_MAP:' templates/project-config-example.yaml 2>/dev/null; then
+  ok "REVIEW_CONTEXT_MAP is a YAML key in project-config-example.yaml"
+else
+  fail "REVIEW_CONTEXT_MAP is not a YAML key in project-config-example.yaml (prose-only would mean the primitive is unimplemented)"
+fi
+
+# Preamble mandatory-reads must honour REVIEW_CONTEXT_MAP.
+# Match the exact interpolated reference `${REVIEW_CONTEXT_MAP}` so a rename like
+# REVIEW_CONTEXT_MAP_DISABLED does not silently satisfy the check.
+if grep -qF '${REVIEW_CONTEXT_MAP}' templates/review-preamble-template.md 2>/dev/null; then
+  ok "templates/review-preamble-template.md wires \${REVIEW_CONTEXT_MAP} into mandatory reads"
+else
+  fail "templates/review-preamble-template.md does not reference \${REVIEW_CONTEXT_MAP} — reviewers cannot load the map"
+fi
+
+# HELP.md Parameters table must document REVIEW_CONTEXT_MAP
+if grep -qE '^\| `REVIEW_CONTEXT_MAP`' HELP.md 2>/dev/null; then
+  ok "HELP.md Parameters table documents REVIEW_CONTEXT_MAP"
+else
+  fail "HELP.md Parameters table missing REVIEW_CONTEXT_MAP row"
+fi
+
+# Rule-content boundaries (non-duplication charter) must exist in HELP.md
+if grep -qF 'Rule-content boundaries' HELP.md 2>/dev/null; then
+  ok "HELP.md carries 'Rule-content boundaries' non-duplication charter"
+else
+  fail "HELP.md missing 'Rule-content boundaries' section (non-duplication charter)"
+fi
+
+# Loading-chain explanation must appear in project-config-example.yaml comments
+if grep -qF 'Review context map' templates/project-config-example.yaml 2>/dev/null; then
+  ok "templates/project-config-example.yaml carries 'Review context map' chain explainer"
+else
+  fail "templates/project-config-example.yaml missing 'Review context map' chain explainer"
+fi
+
+# Preamble still under 80-line hard cap
+preamble_lines=$(wc -l < templates/review-preamble-template.md 2>/dev/null || echo 999)
+if [ "$preamble_lines" -le 80 ]; then
+  ok "review-preamble-template.md is $preamble_lines lines (<=80 cap)"
+else
+  fail "review-preamble-template.md is $preamble_lines lines (exceeds 80-line cap)"
+fi
+
+# --- Check 6: mirror parity for shared files ---------------------------
 section "Mirror parity for shared files"
 drift=0
 for m in "${MIRRORS[@]}"; do

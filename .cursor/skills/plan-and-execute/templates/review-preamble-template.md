@@ -8,7 +8,8 @@ The authoritative rules live in the files listed under "Mandatory reads" below.
 
 1. `${REVIEW_STANDARDS}` — project-specific review rules; authoritative escape-class catalog
 2. `${ENV_CONFIG_POLICY}` — env/config boundary rules (if it exists)
-3. The review-context-compiler digest injected above this prompt (accumulated defect patterns from `defects.jsonl`, role-filtered and severity-sorted)
+3. Each file listed in `${REVIEW_CONTEXT_MAP}` — optional project-specific docs (architecture, invariants, glossary) the reviewer must weigh. Skip this step if the list is empty or unset.
+4. The review-context-compiler digest injected above this prompt (accumulated defect patterns from `defects.jsonl`, role-filtered and severity-sorted)
 
 ## Derive status from code, not prose
 

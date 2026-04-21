@@ -60,17 +60,31 @@ plan-and-execute:
                                                  # failure-path-auditor, mutation-site-auditor, evidence-verifier
                                                  # Project validators: .claude/validators/<name>/SKILL.md
 
-# --- Review context map (concept, not a new config key) ---------------------
+  # Optional list of additional files every reviewer subagent must read after the
+  # mandatory preamble->standards->env-policy chain. Typical entries: project-wide
+  # architecture doc, data-flow invariants, module boundary contracts, domain
+  # glossary. Each entry is a path relative to PROJECT_ROOT. Leave empty to skip.
+  REVIEW_CONTEXT_MAP: []
+  # Example:
+  # REVIEW_CONTEXT_MAP:
+  #   - docs/architecture.md
+  #   - docs/invariants/data-precedence.md
+  #   - docs/glossary.md
+
+# --- Review context map: the full loading chain ------------------------------
 # The keys above form an ordered loading chain that every reviewer subagent walks:
 #
-#   REVIEW_PREAMBLE  ->  REVIEW_STANDARDS  ->  ENV_CONFIG_POLICY  ->  DEFECTS_FILE digest
-#   (posture+loader)     (canonical rules)    (env/config policy)    (role-filtered patterns)
+#   REVIEW_PREAMBLE  ->  REVIEW_STANDARDS  ->  ENV_CONFIG_POLICY  ->  REVIEW_CONTEXT_MAP[]  ->  DEFECTS_FILE digest
+#   (posture+loader)     (canonical rules)    (env/config policy)    (project extras)       (role-filtered patterns)
 #
 # - REVIEW_PREAMBLE is the entry point: a thin (<=80-line) pointer file that
 #   orchestrates the subsequent reads. If REVIEW_PREAMBLE is unset or missing,
 #   reviewers fall back to reading REVIEW_STANDARDS directly and log the fallback.
 # - REVIEW_STANDARDS is the canonical rule catalog (section 6 defines the output contract).
 # - ENV_CONFIG_POLICY is loaded only if it exists.
+# - REVIEW_CONTEXT_MAP supplies optional project-specific docs (architecture,
+#   invariants, glossary) that reviewers must weigh when judging findings. Empty
+#   by default; add entries above as the project grows.
 # - DEFECTS_FILE patterns are compiled into a role-filtered digest via the
 #   review-context-compiler skill, then injected into the reviewer prompt above the
 #   preamble-read instruction. POLICIES_FILE is orchestrator-side only; it is NOT

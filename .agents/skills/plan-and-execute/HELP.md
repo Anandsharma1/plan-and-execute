@@ -83,6 +83,7 @@ Reviews code against your project's `review-standards.md`, `env-config-policy.md
 | `STATE_FILE` | `.plan-and-execute.state.json` | Phase guard state file (relative to CONTEXT_DIR) | |
 | `PLAN_ANALYSER` | `general-purpose` | Subagent type for Phase 3 independent plan critique; `"none"` = inline fallback | `PLAN_ANALYSER=none` |
 | `REVIEW_PREAMBLE` | `.claude/shared/review-preamble.md` | Reviewer posture file injected at start of every review dispatch | |
+| `REVIEW_CONTEXT_MAP` | `[]` | Optional list of project-specific docs (architecture, invariants, glossary) appended to the reviewer mandatory-reads chain. Each entry is a path relative to `PROJECT_ROOT`. | `[docs/architecture.md, docs/invariants.md]` |
 | `PROMOTION_THRESHOLD` | `3` | Min occurrences for Phase 6 promote recommendation | `PROMOTION_THRESHOLD=2` |
 | `SEVERITY_OVERRIDE_PROMOTION` | `["critical"]` | Severities that recommend promotion at 1 occurrence | |
 | `DEFECTS_FILE` | `.claude/defects.jsonl` | Append-only JSONL ledger for RCA records. Committed to git — persists across feature runs. | |
@@ -173,7 +174,9 @@ Three artifacts carry reviewer-adjacent *rules*. Each owns exactly one kind of c
 | `${REVIEW_STANDARDS}` (default `docs/review-standards.md`) | Full rule catalog: architecture/domain/clean-code/tests/invariants, severity rubric, output contract (§6) | Dispatch orchestration, prompt assembly, mirror/install mechanics | Reviewer subagent (via preamble), humans, CI |
 | `CLAUDE.md § Agent Dispatch Discipline` (orchestrator-side) | Dispatch protocol (sequential write-capable agents, destructive-git prohibition, carry-open-issues-forward, sibling-pattern sweep, write-learnings-back cadence, parallel-reviewer guidance), review prompt framing | Rule text consumed inside the reviewer prompt | Orchestrator only — never injected into reviewer subagents |
 
-**The rule:** if content fits in two buckets, the more specific (lower-in-chain) bucket wins. Preamble points to standards for rule text; standards never describe dispatch; dispatch discipline never restates review rules. A reviewer subagent should read the preamble, follow its links, and produce the §6 output — nothing the orchestrator did to dispatch it should leak into its context.
+**Project augmentation via `${REVIEW_CONTEXT_MAP}`:** the preamble's mandatory-reads list includes an optional step that loads every file in `REVIEW_CONTEXT_MAP` (default `[]`). Projects put their architecture doc, invariant contracts, or domain glossary here without editing the preamble itself. The entries are project-scoped augmentation, not rules — they inform reviewer judgement but do not carry severity tags or fix directions.
+
+**The rule:** if content fits in two buckets, the more specific (lower-in-chain) bucket wins. Preamble points to standards for rule text; standards never describe dispatch; dispatch discipline never restates review rules. A reviewer subagent should read the preamble, follow its links (including each `REVIEW_CONTEXT_MAP` entry), and produce the §6 output — nothing the orchestrator did to dispatch it should leak into its context.
 
 ---
 
