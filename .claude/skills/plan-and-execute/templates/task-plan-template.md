@@ -76,33 +76,25 @@ Phase 1
 - **Status:** pending
 
 ### Phase 5: Execution
-
-**Work:**
 - [ ] Re-read protocol files (implementer-prompt.md, reviewer prompts, review-standards, defects.jsonl via review-context-compiler, policies.json)
 - [ ] Execute plan via topology-dependent model (SDD for A/B, dedicated agents for C)
 - [ ] Include project standards in all subagent prompts (subagents don't inherit CLAUDE.md)
 - [ ] Run batch review gate after each parallel batch (lint + domain-code-review on cumulative diff)
 - [ ] Update progress.md after each major milestone
-
-**⛔ MANDATORY GATES — Phase 5 is NOT complete until ALL are [x]:**
-- [ ] GATE: All tasks in plan implemented and committed
-- [ ] GATE: Batch review gate run (lint + domain-code-review on cumulative diff)
-- [ ] GATE: RALPH finalization passed (or user explicitly acknowledges failures)
-- [ ] GATE: progress.md updated with RALPH results
+- [ ] RALPH finalization loop passes (or user acknowledges remaining failures)
+- [ ] Phase 5->6 hard gate: all tasks done, batch review run, RALPH passed
 - **Status:** pending
 
 ### Phase 6: Finalization
-
-**⛔ MANDATORY GATES — feature is NOT complete until ALL are [x]:**
-- [ ] GATE: Security check run (SECURITY_CMD or manual review)
-- [ ] GATE: Config sprawl check done (ENV_CONFIG_POLICY compliance)
-- [ ] GATE: Domain code review on full branch diff (/domain-code-review)
-- [ ] GATE: Domain reviewer agent dispatched (or DOMAIN_REVIEWER=none)
-- [ ] GATE: If default DOMAIN_REVIEWER is missing, flagged in progress.md and final summary
-- [ ] GATE: Review-learnings consolidated (patterns promoted to review-standards if 3+ occurrences)
-- [ ] GATE: Documentation gates passed (module-level, integration-level, project-level)
-- [ ] GATE: Final summary emitted
-- [ ] GATE: Branch ready for merge/PR
+- [ ] Security check passed (or skipped if SECURITY_CMD not set)
+- [ ] Config sprawl check passed (or skipped if ENV_CONFIG_POLICY not set)
+- [ ] Domain review completed (/domain-code-review on full branch diff)
+- [ ] Domain reviewer agent dispatched (or explicitly disabled with DOMAIN_REVIEWER=none)
+- [ ] If default DOMAIN_REVIEWER is missing, flagged in progress.md and final summary
+- [ ] Review-learnings consolidated (patterns promoted to review-standards if 3+ occurrences)
+- [ ] Documentation gates passed (module-level, integration-level, project-level)
+- [ ] Final summary emitted
+- [ ] Branch ready for merge/PR
 - **Status:** pending
 
 ## Plan Details

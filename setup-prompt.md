@@ -91,14 +91,14 @@ After generating the above files, offer two additional setup steps:
 > If Y: Read `./templates/claude-md-agent-dispatch-discipline.md` and append its content to the project's `CLAUDE.md` (create if absent). The content is wrapped in `<!-- BEGIN plan-and-execute:agent-dispatch-discipline -->` / `<!-- END ... -->` sentinel markers. On re-install, detect the sentinels and update the bounded block only — never touch content outside the markers.
 
 **Shared settings hooks (FR-7):**
-> "Install code-quality hooks in shared `.claude/settings.json` so they travel with the repo? [Y/n]"
+> "Install shared safety and quality hooks in `.claude/settings.json` so they travel with the repo? This includes the recommended Phase 5/6 Stop gate. [Y/n]"
 >
 > If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files that duplicate the shared hooks; if so, remove duplicates to prevent double-firing. Copy the shipped hook scripts to `.claude/hooks/` and register them in `settings.json`:
+> - `phase_guard.sh` (Stop) — recommended safety gate; blocks session exit when a plan-and-execute run is in Phase 5/6 and not complete
 > - `block_sensitive_files.sh` (PreToolUse, `Edit|Write|MultiEdit`) — blocks edits on .env and credential files
 > - `python_post_edit.sh` (PostToolUse, `Edit|Write|MultiEdit`) — ruff + py_compile on every .py edit; JS/TS section is commented in the script for manual opt-in
-> - `phase_guard.sh` (Stop) — blocks session exit when a plan-and-execute run is in Phase 5/6 and not complete
 >
-> The hook scripts activate only for matching file types, so they are safe to install on any project. For non-Python stacks, uncomment the JS/TS section in `python_post_edit.sh` and adapt.
+> The Stop hook is not file-type gated; it runs on session exit to enforce Phase 5/6 completion. The PreToolUse/PostToolUse hooks are matcher-scoped to edits and can be adapted per stack. For non-Python stacks, either leave `python_post_edit.sh` as harmless/no-op for non-Python files, or uncomment/adapt its JS/TS section.
 
 Sections that require domain expertise retain their `<!-- CUSTOMIZE -->` comments or are marked with `TODO:` so the user knows what still needs manual attention.
 

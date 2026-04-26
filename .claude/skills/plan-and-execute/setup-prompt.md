@@ -91,42 +91,14 @@ After generating the above files, offer two additional setup steps:
 > If Y: Read `./templates/claude-md-agent-dispatch-discipline.md` and append its content to the project's `CLAUDE.md` (create if absent). The content is wrapped in `<!-- BEGIN plan-and-execute:agent-dispatch-discipline -->` / `<!-- END ... -->` sentinel markers. On re-install, detect the sentinels and update the bounded block only — never touch content outside the markers.
 
 **Shared settings hooks (FR-7):**
-
-> **Hook input format:** All PreToolUse/PostToolUse hooks receive tool context as JSON on stdin.
-> Always extract the file path with:
-> ```bash
-> input=$(cat); FILE=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
-> ```
-> Use matcher `"Edit|Write|MultiEdit"` — this covers all three write tools. Omitting MultiEdit leaves one class of writes unprotected.
-
-Offer the following three hook groups independently:
-
-**FR-7a — Sensitive-file guard (recommended default):**
-> "Add a PreToolUse hook to block edits on .env, credentials, and key files? [Y/n]"
+> "Install shared safety and quality hooks in `.claude/settings.json` so they travel with the repo? This includes the recommended Phase 5/6 Stop gate. [Y/n]"
 >
-> If Y: Copy `./hooks/block_sensitive_files.sh` to `.claude/hooks/block_sensitive_files.sh` (create dir if absent). Add to `settings.json` under `PreToolUse`:
-> ```json
-> {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": "bash .claude/hooks/block_sensitive_files.sh", "timeout": 5}]}
-> ```
-> To extend the blocklist, edit `.claude/hooks/block_sensitive_files.sh` and add patterns to the `case` statement.
-
-**FR-7b — Code-quality PostToolUse hooks:**
-> "Install code-quality hooks in shared `.claude/settings.json` so they travel with the repo? [Y/n]"
+> If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files that duplicate the shared hooks; if so, remove duplicates to prevent double-firing. Copy the shipped hook scripts to `.claude/hooks/` and register them in `settings.json`:
+> - `phase_guard.sh` (Stop) — recommended safety gate; blocks session exit when a plan-and-execute run is in Phase 5/6 and not complete
+> - `block_sensitive_files.sh` (PreToolUse, `Edit|Write|MultiEdit`) — blocks edits on .env and credential files
+> - `python_post_edit.sh` (PostToolUse, `Edit|Write|MultiEdit`) — ruff + py_compile on every .py edit; JS/TS section is commented in the script for manual opt-in
 >
-> If Y: Check whether `settings.local.json` has PostToolUse hooks for Edit/Write on code files. If yes, offer to move them to `settings.json`. Copy `./hooks/python_post_edit.sh` to `.claude/hooks/python_post_edit.sh` (create dir if absent). Add to `settings.json` under `PostToolUse`:
-> ```json
-> {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": "bash .claude/hooks/python_post_edit.sh", "timeout": 30}]}
-> ```
-> For JS/TS projects, adapt `python_post_edit.sh` to use `npx eslint --fix` / `npx prettier --write` and rename accordingly.
-
-**FR-7c — Phase gate Stop hook:**
-> "Install a Stop hook that blocks session exit when a plan-and-execute run is in Phase 5/6 and not complete? [Y/n]"
->
-> If Y: Copy `./hooks/phase_guard.py` to `.claude/hooks/phase_guard.py` (create dir if absent). Add to `settings.json` Stop hooks:
-> ```json
-> {"matcher": "", "hooks": [{"type": "command", "command": "python3 .claude/hooks/phase_guard.py", "timeout": 10}]}
-> ```
-> This hook reads `.plan-and-execute.state.json` (the STATE_FILE written on every phase transition) and blocks exit when `phase >= 5` and `status != "complete"`. Phase 1–4 runs are not blocked. To bypass in an emergency, delete `.plan-and-execute.state.json`.
+> The Stop hook is not file-type gated; it runs on session exit to enforce Phase 5/6 completion. The PreToolUse/PostToolUse hooks are matcher-scoped to edits and can be adapted per stack. For non-Python stacks, either leave `python_post_edit.sh` as harmless/no-op for non-Python files, or uncomment/adapt its JS/TS section.
 
 Sections that require domain expertise retain their `<!-- CUSTOMIZE -->` comments or are marked with `TODO:` so the user knows what still needs manual attention.
 
@@ -149,9 +121,7 @@ Setup complete. Generated files:
 | .claude/policies.json                  | Created | No action needed — active policy registry         |
 | .claude/shared/review-preamble.md      | Created | Seed "Project-specific escape classes" section    |
 | CLAUDE.md (Agent Dispatch Discipline)  | Appended | Review sentinel block; no action usually needed  |
-| .claude/settings.json (sensitive-file guard) | Updated | Review blocklist patterns; add project-specific paths if needed |
-| .claude/settings.json (code-quality hooks) | Updated | Verify hook commands match your stack             |
-| .claude/hooks/phase_guard.py           | Created | No action needed — gates Phase 5/6 on Stop       |
+| .claude/settings.json (quality hooks)  | Updated | Verify hook commands match your stack             |
 | logging_config.py                      | Created | Import in your app entrypoint                     |
 
 Files that were skipped (already existed) are listed as "SKIP (exists)" with no action needed.

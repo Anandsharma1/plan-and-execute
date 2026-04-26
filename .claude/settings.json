@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/skills/plan-and-execute/hooks/block_sensitive_files.sh",
+            "command": ".claude/hooks/block_sensitive_files.sh",
             "timeout": 5
           }
         ]
@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/skills/plan-and-execute/hooks/python_post_edit.sh",
+            "command": ".claude/hooks/python_post_edit.sh",
             "timeout": 30
           }
         ]
@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/skills/plan-and-execute/hooks/phase_guard.py",
+            "command": ".claude/hooks/phase_guard.sh",
             "timeout": 10
           }
         ]

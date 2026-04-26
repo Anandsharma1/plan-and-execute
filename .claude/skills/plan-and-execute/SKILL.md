@@ -88,7 +88,7 @@ Provide at invocation, or accept defaults. Override per-project via `project-con
 | CONCEPT_MODE | `ask` | Phase 1 behaviour: `ask` = present concept/design options to user; `skip` = jump straight to Phase 2 research (for enhancements with clear scope) |
 | DOC_TASK_MODE | `auto` | Phase 4 documentation task: `auto` = always append a mandatory documentation task as the last task; `skip` = no auto-generated doc task |
 | logging | (none — optional) | Nested config block (`destination`, `file_path`, `rotation`, `max_size_mb`, `backup_count`, `format`, `level`). Set once via `install.sh` or manually in `project-config.yaml`. When present, code-quality reviewer enforces logging compliance. |
-| STATE_FILE | `${CONTEXT_DIR}/.plan-and-execute.state.json` | Phase guard state file written on every phase transition. Read by `hooks/phase_guard.sh` Stop hook. |
+| STATE_FILE | `${PROJECT_ROOT}/.plan-and-execute.state.json` | Phase guard state file written on every phase transition. Read by `hooks/phase_guard.sh` Stop hook. Always written at the project root; the hook reads from `CLAUDE_PROJECT_DIR` (the git worktree root) and does not follow a custom `CONTEXT_DIR`. |
 | PLAN_ANALYSER | `general-purpose` | Subagent type for Phase 3 independent plan critique. Set to `"none"` to fall back to inline analysis (with a warning logged). |
 | REVIEW_PREAMBLE | `.claude/shared/review-preamble.md` | Reviewer posture file injected at the start of every reviewer dispatch. Omit or leave unset to fall back to `${REVIEW_STANDARDS}` directly. |
 | REVIEW_CONTEXT_MAP | `[]` | Optional list of project-specific docs (architecture, invariants, glossary) appended to the reviewer mandatory-reads chain after `${REVIEW_STANDARDS}` and `${ENV_CONFIG_POLICY}`. Each entry is a path relative to `${PROJECT_ROOT}`. |
@@ -182,9 +182,7 @@ concept & design         planning-with-files          plan generation         ta
 | `./templates/review-preamble-template.md` | Phase 0 (setup) | Scaffolded into `.claude/shared/review-preamble.md`; injected at the top of every reviewer dispatch |
 | `./templates/claude-md-agent-dispatch-discipline.md` | Phase 0 (setup) | Scaffolded into project CLAUDE.md between sentinel markers on first-run |
 | `./setup-prompt.md` | Phase 0 (first run only) | Auto-detection + guided setup flow — loaded when `.claude/.plan-and-execute-setup.done` is absent |
-| `./hooks/phase_guard.py` | Stop hook (registered via setup FR-7c) | Blocks session exit when phase ≥ 5 and STATE_FILE status is not "complete" |
-| `./hooks/block_sensitive_files.sh` | PreToolUse hook (registered via setup FR-7a) | Blocks edits to .env, credential, and key files |
-| `./hooks/python_post_edit.sh` | PostToolUse hook (registered via setup FR-7b) | Auto-formats Python files with ruff + syntax-checks on every edit |
+| `./hooks/phase_guard.sh` | Stop hook (registered by install.sh) | Blocks session exit when a run is in_progress and has not reached Phase 6 |
 
 ### Bootstrap Templates (for new projects)
 
@@ -199,7 +197,27 @@ concept & design         planning-with-files          plan generation         ta
 
 ## Session Recovery
 
-Before starting, check for unsynced context from a previous session. Try the planning-with-files catchup script if available, otherwise fall back to manual recovery:
+Before starting, run **both** of these checks, in order. The phase-guard abort check (Step A) is **unconditional** — it must run regardless of whether automated catchup is available or reports "no unsynced context," because a prior loop-break means the previous session exited with gates unsatisfied and that signal is independent of the catchup mechanism.
+
+**Step A — unconditional phase-guard abort check.** The hook records a loop-break by mutating `${STATE_FILE}` — check `status` and `run_id`. Use this decision table (rows are exclusive; check them in order):
+
+| state.status | Verdict | Action |
+|---|---|---|
+| `aborted_by_phase_guard` | **Real abort** | Reconcile (below). |
+| `in_progress` | Clean — no prior loop-break | Proceed to Step B. |
+| `complete` / `failed` | Clean | Proceed to Step B. |
+| any other status | Unknown — don't invent policy | Surface to user and ask how to proceed. |
+
+**Reconciliation procedure:**
+1. Surface the abort explicitly to the user: announce `run_id`, `phase`, `aborted_at_utc`, and `abort_reason` from `${STATE_FILE}` ("The previous session hit the phase-guard retry-loop break at phase X on date Y. Gates were not satisfied.").
+2. Reconcile `task_plan.md` and `${STATE_FILE}` against git ground truth using the **External Handoff Sync** procedure below (treat the loop-break as a handoff from the previous session).
+3. Rewrite `${STATE_FILE}` atomically (temp + rename):
+   - Set `status` to `"in_progress"`.
+   - Refresh `last_updated`.
+   - Preserve `abort_reason` / `aborted_at_utc` / `aborted_at_phase` as historical audit fields. Do NOT delete these fields on reset; they're the durable audit trail.
+4. Commit the reconciliation as its own commit.
+
+**Step B — unsynced-context check.** Try the planning-with-files catchup script first, otherwise fall back to manual recovery:
 
 ```bash
 # Try automated catchup (may not be available in all environments)
@@ -209,11 +227,66 @@ if [ -n "$CATCHUP_SCRIPT" ]; then
 fi
 ```
 
-If the script is unavailable or if catchup report shows unsynced context, do manual recovery:
+If the script is unavailable or catchup reports unsynced context, do manual recovery:
 1. Run `git diff --stat` and `git log --oneline -10` to see recent changes
 2. Read existing planning files in order: `task_plan.md` -> `findings.md` -> `progress.md`
 3. Update planning files based on what git shows vs. what's logged
 4. Resume from the last incomplete phase
+
+### External Handoff Sync
+
+**Trigger is the user's words, not the phase.** Run this sub-protocol whenever the user signals that work on this run moved forward in another session or tool — e.g. "another AI did X", "Codex finished phase 4", "picked up from another session", "I implemented it elsewhere", "came back from <other tool>". Do NOT wait until a later phase to reconcile; do it immediately, before acting on the user's actual request.
+
+Why: if the orchestrator resumes without reconciling, `task_plan.md` / `${STATE_FILE}` lag reality. That can falsely trip the Stop hook (blocking exit on gates the external agent already satisfied) or — worse — let the agent silently tick gates it never evaluated. Both outcomes were observed: a real incident burned an entire session's tokens overnight when a post-external-handoff review sat in a Stop-hook retry loop.
+
+**Procedure (do this before the user's actual request):**
+
+1. **Observe ground truth.** The external agent may have left work as commits, staged changes, unstaged changes, or untracked files — inspect all four. Run:
+   - `git log --oneline -20` and `git diff --stat <last-known-sync>..HEAD` (or against the last commit you recognize) — committed work,
+   - `git diff --cached --stat` — staged but not committed,
+   - `git diff --stat` — unstaged modifications,
+   - `git status --short --untracked-files=all` — untracked files and overall shape.
+
+   Read any files the external agent touched or added. Treat uncommitted-but-modified files as real evidence for the reconciliation below; if the external agent finished work without committing, commit-range history alone will understate progress and you will reconcile against stale evidence.
+2. **Reconcile `task_plan.md`:**
+   - Advance `## Current Phase` to match what the external work actually completed.
+   - Tick task checkboxes **only** where the commits/files provide direct evidence.
+   - Leave `- [ ] GATE:` lines **unchecked** unless there is explicit gate evidence (review artifact, test output, reviewer sign-off). A code commit is not gate evidence.
+3. **Reconcile `${STATE_FILE}`:** Update `phase`, set `status` to `"in_progress"` (this is an explicit set, not a no-op — the previous value might have been `"in_progress"` from a clean external handoff, or `"aborted_by_phase_guard"` if recovering from a loop-break; either way the reconciled state should be `"in_progress"` so work can resume), refresh `last_updated`. Write atomically (temp + rename). Do not set `status: "complete"` unless Phase 6 closeout was actually performed.
+4. **Append a `## Handoff Log` entry** to `task_plan.md` with: timestamp, who/what did the external work (e.g. "Codex, implemented Phase 4 tasks T4.1–T4.3"), commits reviewed, which checkboxes were ticked from evidence, which gates remain unchecked and why.
+5. **Commit the sync as its own commit:** `chore(plan): sync after external handoff from <source>`. Keep it separate from any subsequent work so the reconciliation is auditable.
+6. **If a review after sync finds blockers:** write `## ReviewStatus: changes-required` with the findings, then write a **run-and-phase-scoped pause sentinel** to `.claude/awaiting-user` — it must be valid JSON carrying the active `run_id` and `phase` (read from `${STATE_FILE}`) and a short `reason`:
+   ```json
+   {"run_id": "<same-run_id-as-state-file>", "phase": 5, "reason": "domain review: <blocker summary>", "created_at_utc": "<ISO-timestamp>"}
+   ```
+   All three required fields must be present and well-formed: `run_id` must equal `${STATE_FILE}.run_id`, `phase` must be a JSON integer equal to `${STATE_FILE}.phase` (not a float, not a bool, not a string — a real int), and `reason` must be a non-empty string. Write the file **atomically** (write a sibling temp file, then `os.replace` / `mv` into place) so a hook firing mid-write cannot observe a torn JSON payload.
+
+   **Sentinel lifecycle — single-use sentinel plus grace receipt.** The hook validates all three fields; on honor it **durably consumes** `.claude/awaiting-user` and writes a short-lived `.claude/awaiting-user-grace.json` receipt for the same `run_id` + `phase`. The receipt is honored for any `stop_hook_active` retry within the TTL (120 seconds) — no session identity matching is required. The receipt expires automatically after about two minutes, so gating cannot stay disabled for a later session.
+
+   Invalid sentinels are always deleted (to prevent interference with later Stops): an empty file (bare `touch`), unparseable JSON, a top-level JSON value that is not an object, a mismatched `run_id`, a missing / non-int / mismatched `phase`, or a missing/empty `reason` — all are treated as invalid, deleted, and ignored, and the block stands. Invalid or stale grace receipts are likewise deleted. Do not re-tick gates to escape the block. If a follow-up session needs to pause again later, write a fresh sentinel carrying the current phase number.
+
+Only after the sync commit lands do you proceed with the user's actual request (domain review, next phase, bug fix, whatever they asked for).
+
+**Loop-safety note:** `hooks/phase_guard.sh` has two escape hatches so a missed sync cannot trap the session:
+- **Run-and-phase-scoped `.claude/awaiting-user` sentinel** — explicit human-input pause; honored only when its `run_id` matches the active run, its `phase` (int) matches the active phase, AND its `reason` is a non-empty string. On honor, the hook atomically consumes the sentinel and writes a short-lived `.claude/awaiting-user-grace.json` receipt (TTL 120 s) for the same `run_id` + `phase`. That receipt allows any `stop_hook_active` retry within the TTL to pass. The receipt expires automatically, so gating cannot stay disabled for a later session. Fresh pauses require writing a fresh sentinel.
+- **Retry-loop break on `stop_hook_active`** — if Claude re-fires Stop after a prior block from this hook, exit is allowed within the current session to prevent a token-burn loop. The hook atomically mutates `${STATE_FILE}`: `status: "in_progress"` → `status: "aborted_by_phase_guard"` with `abort_reason`, `aborted_at_utc`, and `aborted_at_phase` recorded. `aborted_by_phase_guard` is itself a **blocking** status: future sessions' first Stop will block with a pointed reconcile-or-explicit-bypass message until `status` is reset. Loop-break is NOT a permanent bypass — it only breaks the within-session retry loop. If the state write fails, the hook logs a WARNING to stderr and exits 0 anyway to avoid recreating the token-burn loop.
+
+**State vocabulary and blocking behavior** — `${STATE_FILE}.status` can be:
+
+| Status | Category | Hook behavior at phase ≥ 5 |
+|---|---|---|
+| `"in_progress"` | Blocking | First Stop → block; retry → loop-break path (mutates status to `aborted_by_phase_guard`, exits 0). |
+| `"aborted_by_phase_guard"` | **Blocking** | First Stop → block with pointed reconcile message; retry → idempotent loop-break path (preserves original abort timestamps, exits 0). Persists across sessions until explicitly reset. |
+| `"complete"` | Terminal | Hook no-ops. |
+| `"failed"` | Terminal | Hook no-ops. |
+
+A loop-break **does not clear the block for future sessions** — every new session's first Stop will block again with the aborted-state message until the skill's Session Recovery Step A reconciles and explicitly resets status back to `"in_progress"` (or the user bypasses via `"failed"` / `"complete"`). The retry-loop guard exists to prevent token burn within a single session, not to let a run permanently bypass gate enforcement.
+
+**Graceful-degradation note on loop-break state write:** The hook attempts to atomically write `status: "aborted_by_phase_guard"` to `${STATE_FILE}`. If this write fails (disk full, read-only filesystem), the hook logs a WARNING to stderr and exits 0 to break the retry loop — blocking again on a wedged filesystem would recreate the token-burn loop. In that case inspect stderr output to understand what happened, and manually set status in `${STATE_FILE}` to resume normal gate enforcement.
+
+**Installer migration rule for legacy Stop hooks:** `install.sh` treats any existing Stop command containing `phase_guard.sh` as already registered and skips re-registration (substring match). If a legacy `python3 .claude/hooks/phase_guard.py` entry exists, it is removed and replaced with `bash .claude/hooks/phase_guard.sh`. The legacy file `.claude/hooks/phase_guard.py` is also deleted if present. The installer uses transactional staging (temp files + EXIT trap cleanup) to prevent partial writes on failure.
+
+These are safety nets, not a substitute for running the sync protocol above.
 
 ## Phase 0: Conflict Check + Initialize Context Files
 

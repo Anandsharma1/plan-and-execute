@@ -19,9 +19,24 @@ copy_if_missing() {
     echo "  SKIP (exists): $dest"
   else
     mkdir -p "$(dirname "$dest")"
-    cp "$src" "$dest"
+    copy_file_atomic "$src" "$dest"
     echo "  CREATED: $dest"
   fi
+}
+
+copy_file_atomic() {
+  local src="$1" dest="$2" tmp=""
+  mkdir -p "$(dirname "$dest")"
+  tmp="$(mktemp "${dest}.tmp.XXXXXX")"
+  cleanup() {
+    if [ -n "$tmp" ] && [ -e "$tmp" ]; then
+      rm -f "$tmp"
+    fi
+  }
+  trap cleanup RETURN
+  cp "$src" "$tmp"
+  mv -f "$tmp" "$dest"
+  trap - RETURN
 }
 
 echo "Bootstrapping plan-and-execute templates into: $TARGET"
@@ -41,34 +56,73 @@ copy_if_missing "$SCRIPT_DIR/validators/mutation-site-auditor/SKILL.md" "$TARGET
 copy_if_missing "$SCRIPT_DIR/validators/evidence-verifier/SKILL.md"    "$TARGET/.claude/validators/evidence-verifier/SKILL.md"
 
 # --- Install hooks and register in .claude/settings.json ---
-# Copies hook scripts to .claude/hooks/ and registers them using the correct
-# Claude Code settings schema: {"matcher": "...", "hooks": [{...}]}
-# Appends to existing hook groups rather than overwriting.
 HOOKS_DEST_DIR="$TARGET/.claude/hooks"
 SETTINGS_FILE="$TARGET/.claude/settings.json"
+LEGACY_PY_HOOK="$HOOKS_DEST_DIR/phase_guard.py"
 
 mkdir -p "$HOOKS_DEST_DIR"
 
-install_hook() {
-  local src="$1" dest="$2"
-  if [ ! -f "$dest" ]; then
-    cp "$src" "$dest"
-    chmod +x "$dest"
-    echo "  CREATED: $dest"
-  else
-    echo "  SKIP (exists): $dest"
+validate_hook_destination() {
+  local dest="$1"
+  if [ -e "$dest" ] && [ ! -f "$dest" ]; then
+    echo "  ERROR: hook destination exists but is not a regular file: $dest"
+    echo "         Move or remove that path, then rerun install.sh."
+    exit 1
   fi
 }
 
-install_hook "$SCRIPT_DIR/hooks/phase_guard.sh"          "$HOOKS_DEST_DIR/phase_guard.sh"
-install_hook "$SCRIPT_DIR/hooks/block_sensitive_files.sh" "$HOOKS_DEST_DIR/block_sensitive_files.sh"
-install_hook "$SCRIPT_DIR/hooks/python_post_edit.sh"      "$HOOKS_DEST_DIR/python_post_edit.sh"
+validate_hook_destination "$HOOKS_DEST_DIR/phase_guard.sh"
+validate_hook_destination "$HOOKS_DEST_DIR/block_sensitive_files.sh"
+validate_hook_destination "$HOOKS_DEST_DIR/python_post_edit.sh"
 
-# Register all hooks in settings.json using Python for safe JSON editing.
-# Uses repo-relative command paths so settings.json is portable across machines.
+# Stage all three hook files before settings migration so the install is
+# transactional: if any stage copy fails (permissions, disk full), we exit
+# before touching settings.json. The EXIT trap cleans up on unexpected failure.
+_pg_staged="$HOOKS_DEST_DIR/.phase_guard.sh.installing.$$"
+_bs_staged="$HOOKS_DEST_DIR/.block_sensitive_files.sh.installing.$$"
+_pp_staged="$HOOKS_DEST_DIR/.python_post_edit.sh.installing.$$"
+
+_cleanup_staged_hooks() {
+  rm -f "$_pg_staged" "$_bs_staged" "$_pp_staged"
+}
+trap _cleanup_staged_hooks EXIT
+
+if ! cp "$SCRIPT_DIR/hooks/phase_guard.sh" "$_pg_staged" 2>/dev/null; then
+  echo "  ERROR: cannot write to $HOOKS_DEST_DIR — install aborted before any changes."
+  echo "         Fix permissions on $HOOKS_DEST_DIR and rerun install.sh."
+  exit 1
+fi
+if ! cp "$SCRIPT_DIR/hooks/block_sensitive_files.sh" "$_bs_staged" 2>/dev/null; then
+  echo "  ERROR: cannot stage block_sensitive_files.sh to $HOOKS_DEST_DIR — install aborted."
+  exit 1
+fi
+if ! cp "$SCRIPT_DIR/hooks/python_post_edit.sh" "$_pp_staged" 2>/dev/null; then
+  echo "  ERROR: cannot stage python_post_edit.sh to $HOOKS_DEST_DIR — install aborted."
+  exit 1
+fi
+chmod +x "$_pg_staged" "$_bs_staged" "$_pp_staged"
+
+# Register hooks in settings.json. Uses repo-relative command paths so
+# settings.json is portable across machines.
 if command -v python3 >/dev/null 2>&1; then
   python3 - "$SETTINGS_FILE" <<'PY'
-import json, os, sys
+import json, os, sys, tempfile
+
+def atomic_write_json(path, data):
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=parent)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try: os.unlink(tmp)
+        except OSError: pass
+        raise
 
 settings_path = sys.argv[1]
 
@@ -78,107 +132,126 @@ if os.path.exists(settings_path):
 else:
     settings = {}
 
-# Seed cross-project Claude env defaults (setdefault — never overwrite user values)
 settings.setdefault("env", {})
 settings["env"].setdefault("CLAUDE_CODE_USE_TOOL_SEARCH_TOOL", "1")
 settings["env"].setdefault("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "400000")
 
-settings.setdefault("hooks", {})
+if not isinstance(settings.get("hooks"), dict):
+    settings["hooks"] = {}
+for hook_type in ("Stop", "PreToolUse", "PostToolUse"):
+    if not isinstance(settings["hooks"].get(hook_type), list):
+        settings["hooks"][hook_type] = []
 
-def already_registered(hook_list, command):
-    """Check if a command is already in any hook group in the list."""
+def cmd_contains(cmd, fragment):
+    return isinstance(cmd, str) and fragment in cmd
+
+def iter_commands(hook_list):
     for entry in hook_list:
-        if isinstance(entry, dict):
-            # New schema: {"matcher": "...", "hooks": [{...}]}
-            for h in entry.get("hooks", []):
-                if isinstance(h, dict) and h.get("command") == command:
-                    return True
-            # Old bare schema: {"type": "command", "command": "..."}
-            if entry.get("command") == command:
-                return True
-    return False
+        if not isinstance(entry, dict):
+            continue
+        if isinstance(entry.get("command"), str):
+            yield entry["command"]
+        for h in (entry.get("hooks") or []):
+            if isinstance(h, dict) and isinstance(h.get("command"), str):
+                yield h["command"]
+
+def already_registered(hook_list, filename):
+    return any(cmd_contains(cmd, filename) for cmd in iter_commands(hook_list))
+
+def drop_phase_guard_py(hook_list):
+    new_list = []
+    removed = 0
+    for entry in hook_list:
+        if not isinstance(entry, dict):
+            new_list.append(entry)
+            continue
+        if cmd_contains(entry.get("command"), "phase_guard.py"):
+            removed += 1
+            continue
+        inner = entry.get("hooks") or []
+        if isinstance(inner, list):
+            filtered = [h for h in inner
+                        if not (isinstance(h, dict)
+                                and cmd_contains(h.get("command"), "phase_guard.py"))]
+            removed += len(inner) - len(filtered)
+            if filtered != inner:
+                entry = dict(entry)
+                entry["hooks"] = filtered
+        if entry.get("hooks") or "command" in entry:
+            new_list.append(entry)
+    return new_list, removed
 
 def append_hook(hook_list, matcher, command, timeout):
-    entry = {"matcher": matcher, "hooks": [{"type": "command", "command": command, "timeout": timeout}]}
-    hook_list.append(entry)
+    hook_list.append({"matcher": matcher,
+                      "hooks": [{"type": "command", "command": command, "timeout": timeout}]})
 
-# --- Stop hook: phase_guard.sh ---
-settings["hooks"].setdefault("Stop", [])
-stop_cmd = ".claude/hooks/phase_guard.sh"
-if not already_registered(settings["hooks"]["Stop"], stop_cmd):
-    append_hook(settings["hooks"]["Stop"], "", stop_cmd, 10)
-    print(f"  REGISTERED: phase_guard.sh Stop hook")
-else:
-    print(f"  SKIP (already registered): phase_guard.sh Stop hook")
+cleaned, removed = drop_phase_guard_py(settings["hooks"]["Stop"])
+if removed:
+    settings["hooks"]["Stop"] = cleaned
+    print(f"  MIGRATED: removed {removed} legacy phase_guard.py Stop entry(ies)")
 
-# --- PreToolUse: sensitive-file guard ---
-settings["hooks"].setdefault("PreToolUse", [])
-guard_cmd = ".claude/hooks/block_sensitive_files.sh"
-if not already_registered(settings["hooks"]["PreToolUse"], guard_cmd):
-    append_hook(settings["hooks"]["PreToolUse"], "Edit|Write|MultiEdit", guard_cmd, 5)
-    print(f"  REGISTERED: block_sensitive_files.sh PreToolUse hook")
-else:
-    print(f"  SKIP (already registered): block_sensitive_files.sh PreToolUse hook")
-
-# --- PostToolUse: code-quality (Python) ---
-settings["hooks"].setdefault("PostToolUse", [])
+stop_cmd    = ".claude/hooks/phase_guard.sh"
+guard_cmd   = ".claude/hooks/block_sensitive_files.sh"
 quality_cmd = ".claude/hooks/python_post_edit.sh"
-if not already_registered(settings["hooks"]["PostToolUse"], quality_cmd):
-    append_hook(settings["hooks"]["PostToolUse"], "Edit|Write|MultiEdit", quality_cmd, 30)
-    print(f"  REGISTERED: python_post_edit.sh PostToolUse hook")
+
+if not already_registered(settings["hooks"]["Stop"], "phase_guard.sh"):
+    append_hook(settings["hooks"]["Stop"], "", stop_cmd, 10)
+    print("  REGISTERED: phase_guard.sh Stop hook")
 else:
-    print(f"  SKIP (already registered): python_post_edit.sh PostToolUse hook")
+    print("  SKIP (already registered): phase_guard.sh Stop hook")
 
-os.makedirs(os.path.dirname(settings_path) or ".", exist_ok=True)
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
+if not already_registered(settings["hooks"]["PreToolUse"], "block_sensitive_files.sh"):
+    append_hook(settings["hooks"]["PreToolUse"], "Edit|Write|MultiEdit", guard_cmd, 5)
+    print("  REGISTERED: block_sensitive_files.sh PreToolUse hook")
+else:
+    print("  SKIP (already registered): block_sensitive_files.sh PreToolUse hook")
 
-# --- Migrate duplicate hooks out of settings.local.json ---
-# If settings.local.json already has the same commands we just registered in shared
-# settings.json, remove them to prevent double-firing.
-shared_cmds = {stop_cmd, guard_cmd, quality_cmd}
-local_path = os.path.join(os.path.dirname(settings_path), "settings.local.json")
-if os.path.exists(local_path):
-    with open(local_path) as f:
-        local = json.load(f)
-    changed = False
-    for hook_type in ("Stop", "PreToolUse", "PostToolUse"):
-        groups = local.get("hooks", {}).get(hook_type, [])
-        new_groups = []
-        for entry in groups:
-            if not isinstance(entry, dict):
-                new_groups.append(entry)
-                continue
-            # Filter inner hooks that match a shared command
-            inner = [h for h in entry.get("hooks", [])
-                     if not (isinstance(h, dict) and h.get("command") in shared_cmds)]
-            # Also filter bare-schema entries (old format)
-            if entry.get("command") in shared_cmds:
-                changed = True
-                continue
-            if len(inner) != len(entry.get("hooks", [])):
-                changed = True
-                if inner:
-                    new_groups.append({**entry, "hooks": inner})
-            else:
-                new_groups.append(entry)
-        if new_groups != groups:
-            changed = True
-            local.setdefault("hooks", {})[hook_type] = new_groups
-    if changed:
-        with open(local_path, "w") as f:
-            json.dump(local, f, indent=2)
-        print(f"  MIGRATED: removed duplicate hooks from {local_path}")
-    else:
-        print(f"  OK: no duplicate hooks found in {local_path}")
+if not already_registered(settings["hooks"]["PostToolUse"], "python_post_edit.sh"):
+    append_hook(settings["hooks"]["PostToolUse"], "Edit|Write|MultiEdit", quality_cmd, 30)
+    print("  REGISTERED: python_post_edit.sh PostToolUse hook")
+else:
+    print("  SKIP (already registered): python_post_edit.sh PostToolUse hook")
+
+atomic_write_json(settings_path, settings)
 PY
+  if [ -f "$LEGACY_PY_HOOK" ]; then
+    rm "$LEGACY_PY_HOOK"
+    echo "  REMOVED: $LEGACY_PY_HOOK (superseded by phase_guard.sh)"
+  fi
 else
   echo "  WARNING: python3 not found — hooks not registered in settings.json."
   echo "           Add manually to .claude/settings.json:"
-  echo "             Stop.hooks: [{matcher: \"\", hooks: [{type: command, command: .claude/hooks/phase_guard.sh, timeout: 10}]}]"
-  echo "             PreToolUse.hooks: [{matcher: Edit|Write|MultiEdit, hooks: [{type: command, command: .claude/hooks/block_sensitive_files.sh, timeout: 5}]}]"
-  echo "             PostToolUse.hooks: [{matcher: Edit|Write|MultiEdit, hooks: [{type: command, command: .claude/hooks/python_post_edit.sh, timeout: 30}]}]"
+  echo "             Stop: [{matcher: \"\", hooks: [{type: command, command: .claude/hooks/phase_guard.sh, timeout: 10}]}]"
+  echo "             PreToolUse: [{matcher: Edit|Write|MultiEdit, hooks: [{type: command, command: .claude/hooks/block_sensitive_files.sh, timeout: 5}]}]"
+  echo "             PostToolUse: [{matcher: Edit|Write|MultiEdit, hooks: [{type: command, command: .claude/hooks/python_post_edit.sh, timeout: 30}]}]"
 fi
+
+# Finalize staged hook files now that settings.json is consistent.
+finalize_staged_hook() {
+  local staged="$1" final_src="$2" dest="$3"
+  if [ -e "$dest" ] && [ ! -f "$dest" ]; then
+    echo "  ERROR: hook destination exists but is not a regular file: $dest"
+    exit 1
+  fi
+  if [ ! -f "$dest" ]; then
+    mv "$staged" "$dest"
+    chmod +x "$dest"
+    echo "  CREATED: $dest"
+  elif cmp -s "$final_src" "$dest"; then
+    rm -f "$staged"
+    echo "  UNCHANGED: $dest"
+  else
+    local backup="${dest}.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+    cp "$dest" "$backup"
+    mv "$staged" "$dest"
+    chmod +x "$dest"
+    echo "  UPDATED: $dest (previous content backed up to $backup)"
+  fi
+}
+finalize_staged_hook "$_pg_staged" "$SCRIPT_DIR/hooks/phase_guard.sh"           "$HOOKS_DEST_DIR/phase_guard.sh"
+finalize_staged_hook "$_bs_staged" "$SCRIPT_DIR/hooks/block_sensitive_files.sh" "$HOOKS_DEST_DIR/block_sensitive_files.sh"
+finalize_staged_hook "$_pp_staged" "$SCRIPT_DIR/hooks/python_post_edit.sh"      "$HOOKS_DEST_DIR/python_post_edit.sh"
+trap - EXIT
 
 # --- Interactive logging setup ---
 echo ""
@@ -266,9 +339,7 @@ if [[ "$CONFIGURE_LOGGING" =~ ^[Yy]$ ]]; then
   # Write logging config to project-config.yaml
   CONFIG_FILE="$TARGET/.claude/project-config.yaml"
   if grep -q "^  # logging:" "$CONFIG_FILE" 2>/dev/null || grep -q "^  logging:" "$CONFIG_FILE" 2>/dev/null; then
-    # Replace the commented-out logging block with actual values
-    # Use a temp file for portability
-    TMPFILE=$(mktemp)
+    TMPFILE=$(mktemp "${CONFIG_FILE}.tmp.XXXXXX")
     awk '
       /^  #? *logging:/ { skip=1; next }
       skip && /^  #? *[a-z_]+:/ && !/^  #? *(destination|file_path|rotation|max_size_mb|backup_count|format|level):/ { skip=0 }
@@ -278,7 +349,6 @@ if [[ "$CONFIGURE_LOGGING" =~ ^[Yy]$ ]]; then
     mv "$TMPFILE" "$CONFIG_FILE"
   fi
 
-  # Append logging block before the behavior section
   LOGGING_BLOCK="  logging:"
   LOGGING_BLOCK="$LOGGING_BLOCK\n    destination: \"$LOG_DEST\""
   if [[ "$LOG_DEST" != "terminal" ]]; then
@@ -300,12 +370,9 @@ $(echo -e "$LOGGING_BLOCK")" "$CONFIG_FILE"
   echo ""
   echo "  Logging config written to .claude/project-config.yaml"
 
-  # Generate logging_config.py
   LOGGING_PY="$TARGET/logging_config.py"
   if [ ! -f "$LOGGING_PY" ]; then
     cp "$SCRIPT_DIR/templates/logging_config_template.py" "$LOGGING_PY"
-
-    # Substitute placeholders
     sed -i "s|{{LOG_DEST}}|$LOG_DEST|g" "$LOGGING_PY"
     sed -i "s|{{LOG_FILE_PATH}}|$LOG_FILE_PATH|g" "$LOGGING_PY"
     sed -i "s|{{LOG_ROTATION}}|$LOG_ROTATION|g" "$LOGGING_PY"
@@ -313,7 +380,6 @@ $(echo -e "$LOGGING_BLOCK")" "$CONFIG_FILE"
     sed -i "s|{{LOG_BACKUP_COUNT}}|$LOG_BACKUP_COUNT|g" "$LOGGING_PY"
     sed -i "s|{{LOG_FORMAT}}|$LOG_FORMAT|g" "$LOGGING_PY"
     sed -i "s|{{LOG_LEVEL}}|$LOG_LEVEL|g" "$LOGGING_PY"
-
     echo "  CREATED: $LOGGING_PY"
   else
     echo "  SKIP (exists): $LOGGING_PY"
