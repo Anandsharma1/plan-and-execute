@@ -59,6 +59,13 @@ Task tool (subagent_type: general-purpose):
     - No custom handler setup in application modules — logging infrastructure belongs in the project's centralized config
     - If project has a `logging:` section in project-config.yaml, verify conformance to configured destination/format/level
 
+    **Stub/fake data in production code (flag as Critical):**
+    - Functions that return hardcoded business data (fake scores, placeholder names, zero-value results, "UNKNOWN" identifiers) instead of calling real domain logic
+    - Stubs that silently produce data indistinguishable from real output — these pass tests and mislead users
+    - Look for: literal dicts with business values, functions named `_run_*` or `_stub_*` that return constructed data, `"UNKNOWN"` or `"placeholder"` string literals in business data paths
+    - Acceptable ONLY if: marked with `# STUB: <reason>` comment AND a `logger.warning("STUB: ...")` at runtime
+    - If a feature can't be wired, it should raise `NotImplementedError` or return an explicit error, not fake data
+
     **Config sprawl** (if ${ENV_CONFIG_POLICY} exists, enforce its rules):
     - New config values use python-dotenv pattern (or project-appropriate config mechanism, not hardcoded defaults in logic)
     - No secrets or API keys in committed source files
